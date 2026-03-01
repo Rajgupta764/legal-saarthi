@@ -48,10 +48,17 @@ class User:
     
     def to_response(self):
         """Convert user to response dictionary (without password hash)"""
+        created_at_str = None
+        if self.created_at:
+            if hasattr(self.created_at, 'isoformat'):
+                created_at_str = self.created_at.isoformat()
+            else:
+                created_at_str = str(self.created_at)
+        
         return {
             'email': self.email,
             'name': self.name,
             'phone': self.phone,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': created_at_str,
             'is_active': self.is_active
         }

@@ -9,7 +9,9 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from app.config.mongodb import get_db
 from app.models.user import User
-import jwt as pyjwt
+
+# Import PyJWT functions directly
+from jwt import encode as jwt_encode, decode as jwt_decode, ExpiredSignatureError, InvalidTokenError
 
 load_dotenv()
 
@@ -42,17 +44,17 @@ class AuthService:
             'iat': datetime.utcnow(),
             'exp': datetime.utcnow() + timedelta(hours=expires_in_hours)
         }
-        return pyjwt.encode(payload, JWT_SECRET, algorithm='HS256')
+        return jwt_encode(payload, JWT_SECRET, algorithm='HS256')
     
     @staticmethod
     def verify_token(token):
         """Verify and decode JWT token"""
         try:
-            decoded = pyjwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            decoded = jwt_decode(token, JWT_SECRET, algorithms=['HS256'])
             return {'success': True, 'data': decoded}
-        except pyjwt.ExpiredSignatureError:
+        except ExpiredSignatureError:
             return {'success': False, 'error': 'Token expired'}
-        except pyjwt.InvalidTokenError:
+        except InvalidTokenError:
             return {'success': False, 'error': 'Invalid token'}
     
     @staticmethod
@@ -117,17 +119,23 @@ class AuthService:
     @staticmethod
     def login_user(email, password):
         """Login user and return JWT token"""
+        print(f"Login attempt for email: {email}")
+        
         db = get_db()
         
         if db is None:
+            print("Database connection failed")
             return {
                 'success': False,
                 'error': 'Database connection failed',
                 'message': 'डेटाबेस से कनेक्शन विफल'
             }
         
+        print("Database connection successful")
         users_collection = db['users']
         user_data = users_collection.find_one({'email': email})
+        
+        print(f"User found: {user_data is not None}")
         
         if not user_data:
             return {
@@ -136,13 +144,16 @@ class AuthService:
                 'message': 'गलत ईमेल या पासवर्ड'
             }
         
+        print("Verifying password...")
         if not AuthService.verify_password(password, user_data.get('password_hash', '')):
+            print("Password verification failed")
             return {
                 'success': False,
                 'error': 'Invalid credentials',
                 'message': 'गलत ईमेल या पासवर्ड'
             }
         
+        print("Password verified, checking account status...")
         if not user_data.get('is_active', True):
             return {
                 'success': False,
@@ -150,18 +161,29 @@ class AuthService:
                 'message': 'आपका खाता अक्षम है'
             }
         
-        user = User.from_dict(user_data)
-        user_response = user.to_response()
-        token = AuthService.generate_token(user_response)
-        
-        return {
-            'success': True,
-            'message': 'Login successful',
-            'data': {
-                'user': user_response,
-                'token': token
+        print("Creating user response...")
+        try:
+            user = User.from_dict(user_data)
+            user_response = user.to_response()
+            print(f"User response created: {user_response}")
+            
+            print("Generating token...")
+            token = AuthService.generate_token(user_response)
+            print("Token generated successfully")
+            
+            return {
+                'success': True,
+                'message': 'Login successful',
+                'data': {
+                    'user': user_response,
+                    'token': token
+                }
             }
-        }
+        except Exception as e:
+            print(f"Error in login_user: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     @staticmethod
     def get_user_by_email(email):

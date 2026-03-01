@@ -5,6 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
-    open: true
+    open: true,
+    // No CSP in dev - allows fonts, localhost, and blob for voice recording
+    headers: {
+      'Access-Control-Allow-Origin': '*'
+    }
+  },
+  // Production build includes CSP in the HTML
+  build: {
+    minify: 'terser'
   }
 })

@@ -62,10 +62,18 @@ def process_message():
         response = chatbot_service.process_user_input(user_input, conversation_history)
         
         if response.get('error'):
-            return jsonify({
-                'success': False,
-                'error': response['error']
-            }), 400
+            # Check if it's a retry-able error
+            if response.get('retry'):
+                return jsonify({
+                    'success': True,
+                    'data': response
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': response.get('error'),
+                    'message': response.get('message', 'कृपया सही जानकारी दें।')
+                }), 400
         
         return jsonify({
             'success': True,

@@ -16,6 +16,28 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
   const recognitionRef = useRef(null)
   const synthesisRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const isListeningRef = useRef(false)
+  const stopListeningRequestedRef = useRef(false)
+
+  useEffect(() => {
+    isListeningRef.current = isListening
+  }, [isListening])
+
+  // Load voices on mount
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      // Load voices
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices()
+        console.log('Available voices:', voices.map(v => v.name))
+      }
+      
+      loadVoices()
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      }
+    }
+  }, [])
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -25,6 +47,7 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       recognitionRef.current.continuous = false
       recognitionRef.current.interimResults = true
       recognitionRef.current.lang = language
+      recognitionRef.current.maxAlternatives = 1
 
       recognitionRef.current.onresult = (event) => {
         let interimTranscript = ''
@@ -47,17 +70,31 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       }
 
       recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error)
+        const expectedErrors = new Set(['aborted', 'no-speech'])
+        if (!expectedErrors.has(event.error)) {
+          console.error('Speech recognition error:', event.error)
+        }
+
+        if (event.error === 'aborted') {
+          return
+        }
+
         setIsListening(false)
         if (event.error === 'no-speech') {
-          speakMessage('कुछ सुनाई नहीं दिया। कृपया फिर से बोलें।')
+          if (messages.length > 1) {
+            speakMessage('कुछ सुनाई नहीं दिया। कृपया फिर से बोलें।')
+          }
         } else if (event.error === 'network') {
           speakMessage('इंटरनेट की समस्या है। कृपया जांचें।')
+        } else if (event.error === 'not-allowed') {
+          speakMessage('माइक्रोफ़ोन की अनुमति नहीं है।')
         }
       }
 
       recognitionRef.current.onend = () => {
-        setIsListening(false)
+        if (!stopListeningRequestedRef.current) {
+          setIsListening(false)
+        }
       }
     }
 
@@ -95,8 +132,14 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
           options: response.data.data.options
         }
         setMessages([botMessage])
-        speakMessage(initialMsg + ' बोलकर बताएं।')
         setCurrentStep('category_selection')
+        
+        // Speak initial message and then start listening
+        speakMessage(initialMsg + ' बोलकर बताएं।', () => {
+          setTimeout(() => {
+            startListening()
+          }, 500)
+        })
       }
     } catch (error) {
       console.error('Error starting voice assistant:', error)
@@ -105,26 +148,30 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
   }
 
   const startListening = () => {
-    if (recognitionRef.current && !isListening) {
+    if (recognitionRef.current && !isListeningRef.current) {
+      stopListeningRequestedRef.current = false
       setTranscript('')
       setIsListening(true)
       try {
         recognitionRef.current.start()
       } catch (error) {
-        console.error('Error starting recognition:', error)
+        if (error?.name !== 'InvalidStateError') {
+          console.error('Error starting recognition:', error)
+        }
         setIsListening(false)
       }
     }
   }
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
+    stopListeningRequestedRef.current = true
+    if (recognitionRef.current && isListeningRef.current) {
       recognitionRef.current.stop()
       setIsListening(false)
     }
   }
 
-  const speakMessage = (text) => {
+  const speakMessage = (text, onComplete = null) => {
     if ('speechSynthesis' in window) {
       // Cancel any ongoing speech
       window.speechSynthesis.cancel()
@@ -132,15 +179,43 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.lang = language
       utterance.rate = 0.9
-      utterance.pitch = 1
+      utterance.pitch = 1.1
       utterance.volume = 1
 
+      // Try to use a female voice
+      const voices = window.speechSynthesis.getVoices()
+      const femaleVoice = voices.find(voice => 
+        (voice.lang.startsWith(language.split('-')[0]) && 
+         (voice.name.toLowerCase().includes('female') || 
+          voice.name.toLowerCase().includes('woman') ||
+          voice.name.toLowerCase().includes('zira') ||
+          voice.name.toLowerCase().includes('hazel') ||
+          voice.name.toLowerCase().includes('samantha')))
+      ) || voices.find(voice => voice.lang.startsWith(language.split('-')[0]))
+      
+      if (femaleVoice) {
+        utterance.voice = femaleVoice
+      }
+
       utterance.onstart = () => setIsSpeaking(true)
-      utterance.onend = () => setIsSpeaking(false)
-      utterance.onerror = () => setIsSpeaking(false)
+      utterance.onend = () => {
+        setIsSpeaking(false)
+        if (onComplete) onComplete()
+      }
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event)
+        setIsSpeaking(false)
+        if (onComplete) onComplete()
+      }
 
       setIsSpeaking(true)
-      window.speechSynthesis.speak(utterance)
+      
+      // Small delay to ensure previous speech is cancelled
+      setTimeout(() => {
+        window.speechSynthesis.speak(utterance)
+      }, 100)
+    } else if (onComplete) {
+      onComplete()
     }
   }
 
@@ -150,6 +225,38 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       setIsSpeaking(false)
     }
   }
+
+  const matchVoiceToOptions = (voiceInput, options) => {
+    if (!options || options.length === 0) return null
+    
+    const input = voiceInput.toLowerCase().trim()
+    
+    // Try exact match first
+    for (const option of options) {
+      if (option.label.toLowerCase() === input || option.value.toLowerCase() === input) {
+        return option.value
+      }
+    }
+    
+    // Try partial match
+    for (const option of options) {
+      const optionWords = option.label.toLowerCase().split(' ')
+      const inputWords = input.split(' ')
+      
+      // Check if any significant word matches
+      for (const optWord of optionWords) {
+        for (const inWord of inputWords) {
+          if (optWord.length > 2 && inWord.length > 2 && 
+              (optWord.includes(inWord) || inWord.includes(optWord))) {
+            return option.value
+          }
+        }
+      }
+    }
+    
+    return null
+  }
+
 
   const handleVoiceInput = async (voiceText) => {
     setIsListening(false)
@@ -161,10 +268,27 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     }
     setMessages(prev => [...prev, userMessage])
 
-    // Create conversation entry
-    const conversationEntry = {
-      type: 'user_input',
-      content: voiceText
+    // Create conversation entry based on current step
+    let conversationEntry
+    
+    if (currentStep === 'category_selection') {
+      conversationEntry = {
+        type: 'user_input',
+        content: voiceText
+      }
+    } else if (currentStep === 'information_collection') {
+      // Get the last bot message to find which question this answers
+      const lastBotMsg = messages.filter(m => m.type === 'bot').pop()
+      conversationEntry = {
+        type: 'user_answer',
+        content: voiceText,
+        question_key: lastBotMsg?.question?.key || 'unknown'
+      }
+    } else {
+      conversationEntry = {
+        type: 'user_input',
+        content: voiceText
+      }
     }
     
     const updatedConversation = [...conversation, conversationEntry]
@@ -178,29 +302,99 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     try {
       setIsProcessing(true)
 
-      // Check if input matches a category
+      // Comprehensive category mapping with synonyms and common phrases
       const categoryMap = {
         'पुलिस': 'police_harassment',
         'पुलिस परेशानी': 'police_harassment',
+        'पुलिस की': 'police_harassment',
+        'गिरफ्तारी': 'police_harassment',
+        'हिरासत': 'police_harassment',
+        'मारपीट': 'police_harassment',
+        'एफआईआर': 'police_harassment',
+        'fir': 'police_harassment',
+        'police': 'police_harassment',
+        'arrest': 'police_harassment',
+        
         'जमीन': 'property_dispute',
         'संपत्ति': 'property_dispute',
+        'मकान': 'property_dispute',
+        'खेत': 'property_dispute',
+        'घर': 'property_dispute',
+        'प्रॉपर्टी': 'property_dispute',
+        'property': 'property_dispute',
+        'land': 'property_dispute',
+        'house': 'property_dispute',
+        'सीमा': 'property_dispute',
+        'boundary': 'property_dispute',
+        
         'परिवार': 'family_matter',
+        'शादी': 'family_matter',
+        'तलाक': 'family_matter',
+        'पत्नी': 'family_matter',
+        'पति': 'family_matter',
+        'बच्चे': 'family_matter',
+        'family': 'family_matter',
+        'marriage': 'family_matter',
+        'divorce': 'family_matter',
+        'wife': 'family_matter',
+        'husband': 'family_matter',
+        'दहेज': 'family_matter',
+        
         'नौकरी': 'labor_issue',
         'मजदूरी': 'labor_issue',
+        'काम': 'labor_issue',
+        'वेतन': 'labor_issue',
+        'सैलरी': 'labor_issue',
+        'पैसा नहीं': 'labor_issue',
+        'payment': 'labor_issue',
+        'salary': 'labor_issue',
+        'job': 'labor_issue',
+        'labor': 'labor_issue',
+        'work': 'labor_issue',
+        'employer': 'labor_issue',
+        'मालिक': 'labor_issue',
+        
         'उपभोक्ता': 'consumer_complaint',
         'शिकायत': 'consumer_complaint',
+        'खरीदारी': 'consumer_complaint',
+        'सामान': 'consumer_complaint',
+        'दुकान': 'consumer_complaint',
+        'खराब': 'consumer_complaint',
+        'consumer': 'consumer_complaint',
+        'complaint': 'consumer_complaint',
+        'shop': 'consumer_complaint',
+        'product': 'consumer_complaint',
+        'defective': 'consumer_complaint',
+        
         'कुछ और': 'others',
-        'अन्य': 'others'
+        'अन्य': 'others',
+        'other': 'others',
+        'something else': 'others'
       }
 
-      let userInput = input.toLowerCase()
+      let userInput = input.toLowerCase().trim()
       let matched = null
 
       // Try to match category from voice input
+      // First, try exact phrase matching
       for (const [key, value] of Object.entries(categoryMap)) {
-        if (userInput.includes(key.toLowerCase())) {
+        if (userInput === key.toLowerCase() || userInput.includes(key.toLowerCase())) {
           matched = value
           break
+        }
+      }
+
+      // If no exact match, try word-by-word matching
+      if (!matched) {
+        const words = userInput.split(' ')
+        for (const word of words) {
+          for (const [key, value] of Object.entries(categoryMap)) {
+            if (word === key.toLowerCase() || key.toLowerCase().includes(word)) {
+              matched = value
+              break
+            }
+          }
+          if (matched) break
         }
       }
 
@@ -221,11 +415,58 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
 
         if (response.data.success) {
           handleBotResponse(response.data.data)
+        } else {
+          // Handle error response
+          throw new Error(response.data.error || 'Invalid response')
         }
-      } else {
-        // Regular text input processing
+      } else if (currentStep === 'category_selection') {
+        // No match found, send raw input to backend for intelligent matching
+        const conversationEntry = {
+          type: 'user_input',
+          content: input
+        }
+        const updatedHistory = [conversationEntry]
+        setConversation(updatedHistory)
+        
         const response = await api.post('/chatbot/message', {
           user_input: input,
+          conversation_history: updatedHistory
+        })
+
+        if (response.data.success) {
+          handleBotResponse(response.data.data)
+        } else if (response.data.error === 'unclear_category' || response.data.data?.retry) {
+          // Backend couldn't match, show helpful message
+          const helpMsg = {
+            type: 'bot',
+            content: response.data.data?.message || 
+                    'मुझे समझ नहीं आया। कृपया साफ़ शब्दों में बताएं:\n\n' +
+                    '• पुलिस की समस्या के लिए: "पुलिस"\n' +
+                    '• जमीन/संपत्ति के लिए: "जमीन"\n' +
+                    '• परिवार के मामले के लिए: "परिवार"\n' +
+                    '• नौकरी/मजदूरी के लिए: "नौकरी"\n' +
+                    '• उपभोक्ता शिकायत के लिए: "उपभोक्ता"\n' +
+                    '• अन्य के लिए: "अन्य"'
+          }
+          setMessages(prev => [...prev, helpMsg])
+          speakMessage(helpMsg.content)
+          // Stay in category_selection step for retry
+        }
+      } else {
+        // We're in information collection phase
+        // Check if the current question has options and try to match
+        const lastMessage = messages[messages.length - 1]
+        let processedInput = input
+        
+        if (lastMessage && lastMessage.question && lastMessage.question.options) {
+          const matchedOption = matchVoiceToOptions(input, lastMessage.question.options)
+          if (matchedOption) {
+            processedInput = matchedOption
+          }
+        }
+        
+        const response = await api.post('/chatbot/message', {
+          user_input: processedInput,
           conversation_history: conversationHistory
         })
 
@@ -237,7 +478,9 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       console.error('Error processing voice input:', error)
       const errorMsg = {
         type: 'bot',
-        content: error.response?.data?.error || 'त्रुटि उत्पन्न हुई। कृपया पुनः प्रयास करें।'
+        content: error.response?.data?.message || 
+                error.response?.data?.error || 
+                'कुछ गलत हो गया। कृपया फिर से बोलें।'
       }
       setMessages(prev => [...prev, errorMsg])
       speakMessage(errorMsg.content)
@@ -250,12 +493,13 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     // Update conversation data
     if (data.category) {
       setConversationData(prev => ({ ...prev, category: data.category }))
+      setCurrentStep('information_collection')
     }
 
     // Create bot message
     let botContent = data.message
     
-    // Add options if available
+    // Add options if available (but don't read them all out loud)
     if (data.options) {
       botContent += '\n\nविकल्प:\n' + data.options.map((opt, idx) => `${idx + 1}. ${opt.label}`).join('\n')
     }
@@ -273,31 +517,46 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
 
     setMessages(prev => [...prev, botMessage])
     
-    // Speak the response
+    // Speak the response (simplified for voice)
     let spokenText = data.message
-    if (data.question && data.question.placeholder) {
-      spokenText += ` उदाहरण: ${data.question.placeholder}`
+    if (data.question) {
+      // For questions, just ask the question
+      if (data.question.label) {
+        spokenText = data.question.label
+      }
+      if (data.question.placeholder && data.question.type !== 'options') {
+        spokenText += ` उदाहरण के लिए, ${data.question.placeholder}`
+      }
+    } else if (data.options && data.options.length > 0) {
+      // For options, give a hint but don't read all
+      spokenText += ' अपना जवाब बोलें।'
     }
-    speakMessage(spokenText)
+    
+    // Speak and auto-start listening when done
+    speakMessage(spokenText, () => {
+      // Check if conversation complete
+      if (data.completed) {
+        setCurrentStep('completed')
+        // Don't automatically generate document, show suggestions first
+        if (data.suggestions) {
+          speakMessage('क्या आप दस्तावेज़ तैयार करना चाहते हैं?')
+        }
+      } else {
+        // Auto-start listening after bot finishes speaking
+        setTimeout(() => {
+          startListening()
+        }, 800)
+      }
+    })
 
     // Update conversation history
     const botEntry = {
-      type: 'bot_response',
+      type: data.question ? 'bot_question' : 'bot_response',
       content: data.message,
-      question: data.question
+      question: data.question,
+      question_key: data.question_key
     }
     setConversation(prev => [...prev, botEntry])
-
-    // Check if conversation complete
-    if (data.completed) {
-      setCurrentStep('document_generation')
-      setTimeout(() => {
-        speakMessage('आपकी जानकारी पूरी हो गई है। अब दस्तावेज़ तैयार करेंगे।')
-        handleGenerateDocument(data.data, data.action)
-      }, 2000)
-    } else if (data.question) {
-      setCurrentStep('information_collection')
-    }
   }
 
   const handleGenerateDocument = async (conversationData, documentType) => {
@@ -384,10 +643,24 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${isSpeaking ? 'bg-green-400 animate-pulse' : 'bg-white'}`} />
+          <div className={`w-3 h-3 rounded-full ${
+            isListening ? 'bg-red-400 animate-pulse' : 
+            isSpeaking ? 'bg-green-400 animate-pulse' : 
+            'bg-white'
+          }`} />
           <div>
-            <h3 className="font-semibold">🎙️ आवाज़ सहायक</h3>
-            <p className="text-xs text-blue-100">Voice Assistant</p>
+            <h3 className="font-semibold">
+              {isListening ? '🎤 सुन रहा हूँ...' : 
+               isSpeaking ? '🔊 बता रहा हूँ...' : 
+               '🎙️ आवाज़ सहायक'}
+            </h3>
+            <p className="text-xs text-blue-100">
+              {currentStep === 'category_selection' ? 'समस्या चुनें' :
+               currentStep === 'information_collection' ? 'जानकारी दे रहे हैं' :
+               currentStep === 'completed' ? 'सुझाव देखें' :
+               currentStep === 'document_generation' ? 'दस्तावेज़ तैयार हो रहा है' :
+               'Voice Assistant'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -498,7 +771,10 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
         </div>
 
         <p className="text-center text-xs text-gray-500 mt-3">
-          {isListening ? '🎤 सुन रहा हूँ...' : isSpeaking ? '🔊 बोल रहा हूँ...' : 'माइक बटन दबाकर बोलें'}
+          {isListening ? '🎤 सुन रहा हूँ... बोलें' : 
+           isSpeaking ? '🔊 बोल रहा हूँ... सुनें' : 
+           isProcessing ? '⏳ प्रोसेस हो रहा है...' :
+           'बोलने के बाद मैं सुनूंगा 👂'}
         </p>
       </div>
     </div>

@@ -36,238 +36,214 @@ class ChatbotService:
                 ]
             },
             'police_harassment': {
-                'message': 'पुलिस परेशानी के बारे में बताइए। क्या हुआ?',
+                'message': 'ठीक है, मुझे बताइए क्या हुआ? पुलिस ने आपके साथ क्या किया? पूरी घटना विस्तार से बताइए।',
                 'questions': [
                     {
-                        'key': 'incident_type',
-                        'label': 'घटना का प्रकार',
-                        'options': [
-                            {'label': 'गिरफ्तारी/हिरासत', 'value': 'arrest'},
-                            {'label': 'पूछताछ में मारपीट', 'value': 'torture'},
-                            {'label': 'अन्यायपूर्ण FIR', 'value': 'false_fir'},
-                            {'label': 'रिश्वत माँगना', 'value': 'bribery'},
-                            {'label': 'अन्य परेशानी', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'when_happened',
-                        'label': 'यह कब हुआ?',
-                        'type': 'text',
-                        'placeholder': 'तारीख (जैसे: 15 दिन पहले)'
-                    },
-                    {
-                        'key': 'police_station',
-                        'label': 'किस पुलिस स्टेशन में हुआ?',
-                        'type': 'text',
-                        'placeholder': 'पुलिस स्टेशन का नाम'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'विस्तार से बताइए',
+                        'key': 'full_problem_description',
+                        'label': 'अपनी पूरी समस्या बताइए - क्या हुआ था? कब हुआ? कहाँ हुआ? कौन कौन शामिल थे?',
                         'type': 'textarea',
-                        'placeholder': 'क्या हुआ था? कितने लोग शामिल थे?'
+                        'placeholder': 'पूरी घटना विस्तार से'
+                    },
+                    {
+                        'key': 'your_details',
+                        'label': 'अब अपना नाम और पता बताइए',
+                        'type': 'text',
+                        'placeholder': 'आपका नाम और पता'
                     }
                 ],
-                'next_action': 'generate_fir'
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. तुरंत FIR दर्ज करें',
+                        '2. मेडिकल जांच कराएं (चोट के सबूत के लिए)',
+                        '3. गवाहों के नाम और संपर्क इकट्ठा करें',
+                        '4. घटना की तारीख, समय और जगह नोट करें'
+                    ],
+                    'proofs_needed': [
+                        '📸 चोट की फोटो (अगर मारपीट हुई हो)',
+                        '🏥 मेडिकल रिपोर्ट',
+                        '👥 गवाहों के नाम और पते',
+                        '📝 घटना की लिखित शिकायत',
+                        '📍 घटना स्थल की जानकारी',
+                        '🎥 अगर कोई वीडियो हो'
+                    ],
+                    'document_type': 'fir'
+                }
             },
             'property_dispute': {
-                'message': 'संपत्ति संबंधित विवाद के बारे में बताइए।',
+                'message': 'ठीक है। अपनी जमीन/संपत्ति की समस्या विस्तार से बताइए।',
                 'questions': [
                     {
-                        'key': 'dispute_type',
-                        'label': 'विवाद का प्रकार',
-                        'options': [
-                            {'label': 'सीमा विवाद', 'value': 'boundary'},
-                            {'label': 'मालिकाना हक़', 'value': 'ownership'},
-                            {'label': 'किराया विवाद', 'value': 'rent'},
-                            {'label': 'दस्तावेज़ संबंधित', 'value': 'document'},
-                            {'label': 'अन्य', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'property_type',
-                        'label': 'संपत्ति का प्रकार',
-                        'options': [
-                            {'label': 'जमीन/खेत', 'value': 'land'},
-                            {'label': 'मकान', 'value': 'house'},
-                            {'label': 'दुकान', 'value': 'shop'},
-                            {'label': 'अन्य', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'opposite_party',
-                        'label': 'विरोधी पक्ष कौन है?',
-                        'type': 'text',
-                        'placeholder': 'नाम या रिश्ता (जैसे: पड़ोसी राज)'
-                    },
-                    {
-                        'key': 'when_started',
-                        'label': 'विवाद कब शुरू हुआ?',
-                        'type': 'text',
-                        'placeholder': 'तारीख या महीना'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'पूरी स्थिति बताइए',
+                        'key': 'full_problem_description',
+                        'label': 'क्या समस्या है? कब शुरू हुई? विरोधी पक्ष कौन है? पूरी बात बताइए।',
                         'type': 'textarea',
-                        'placeholder': 'क्या हुआ? दस्तावेज़ हैं? किसने दावा किया?'
+                        'placeholder': 'पूरी समस्या विस्तार से'
+                    },
+                    {
+                        'key': 'your_details',
+                        'label': 'अपना नाम, पता और संपत्ति का विवरण बताइए',
+                        'type': 'text',
+                        'placeholder': 'आपका नाम, पता और संपत्ति की जानकारी'
                     }
                 ],
-                'next_action': 'generate_notice'
-            },
-            'labor_issue': {
-                'message': 'नौकरी/मजदूरी संबंधी समस्या बताइए।',
-                'questions': [
-                    {
-                        'key': 'issue_type',
-                        'label': 'समस्या का प्रकार',
-                        'options': [
-                            {'label': 'तनख्वाह न मिलना', 'value': 'unpaid_salary'},
-                            {'label': 'बिना कारण निकाला गया', 'value': 'wrongful_termination'},
-                            {'label': 'काम की शर्तें', 'value': 'bad_conditions'},
-                            {'label': 'प्रोविडेंट फंड', 'value': 'pf_issue'},
-                            {'label': 'अन्य', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'company_name',
-                        'label': 'कंपनी/मालिक का नाम',
-                        'type': 'text',
-                        'placeholder': 'कहाँ काम करते हैं?'
-                    },
-                    {
-                        'key': 'months_worked',
-                        'label': 'कितने महीने काम किया?',
-                        'type': 'text',
-                        'placeholder': 'महीने का संख्या'
-                    },
-                    {
-                        'key': 'amount_due',
-                        'label': 'कितना पैसा बकाया है? (यदि लागू हो)',
-                        'type': 'text',
-                        'placeholder': 'राशि (जैसे: ₹50,000)'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'विस्तार से बताइए',
-                        'type': 'textarea',
-                        'placeholder': 'कब शुरू हुई समस्या? क्या कोशिश की?'
-                    }
-                ],
-                'next_action': 'generate_notice'
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. संपत्ति के पुराने दस्तावेज़ इकट्ठा करें',
+                        '2. सीमा की जांच कराएं (Survey)',
+                        '3. तहसीलदार/पटवारी से record निकलवाएं',
+                        '4. कानूनी नोटिस भेजें'
+                    ],
+                    'proofs_needed': [
+                        '📄 पुराने दस्तावेज़ (रसीद, रजिस्ट्री)',
+                        '🗺️ Survey map या नक्शा',
+                        '📋 खतौनी/खसरा',
+                        '📸 संपत्ति की फोटो',
+                        '👥 पुराने गवाहों के नाम',
+                        '💰 खरीद की रसीद (अगर हो)'
+                    ],
+                    'document_type': 'notice'
+                }
             },
             'family_matter': {
-                'message': 'परिवार संबंधी मामले बताइए।',
+                'message': 'ठीक है। अपनी पारिवारिक समस्या बताइए।',
                 'questions': [
                     {
-                        'key': 'matter_type',
-                        'label': 'मामले का प्रकार',
-                        'options': [
-                            {'label': 'विवाह संबंधी', 'value': 'marriage'},
-                            {'label': 'तलाक/अलगाव', 'value': 'divorce'},
-                            {'label': 'संतान की कस्टडी', 'value': 'custody'},
-                            {'label': 'विरासत/विल', 'value': 'inheritance'},
-                            {'label': 'दहेज़ दुर्व्यवहार', 'value': 'dowry'},
-                            {'label': 'अन्य', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'opposite_party',
-                        'label': 'विरोधी पक्ष कौन है?',
-                        'type': 'text',
-                        'placeholder': 'रिश्ता (जैसे: पति, माता-पिता)'
-                    },
-                    {
-                        'key': 'married_since',
-                        'label': 'शादी कब की? (यदि लागू हो)',
-                        'type': 'text',
-                        'placeholder': 'साल या तारीख'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'स्थिति बताइए',
+                        'key': 'full_problem_description',
+                        'label': 'क्या हो रहा है? कब से समस्या है? क्या हुआ? विस्तार से बताइए।',
                         'type': 'textarea',
-                        'placeholder': 'क्या समस्या है? कब से है?'
+                        'placeholder': 'पूरी स्थिति बताएं'
+                    },
+                    {
+                        'key': 'your_details',
+                        'label': 'अपना नाम, पता और सामने वाले व्यक्ति का नाम बताइए',
+                        'type': 'text',
+                        'placeholder': 'आपकी और विरोधी पक्ष की जानकारी'
                     }
                 ],
-                'next_action': 'generate_petition'
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. घटनाओं की डायरी रखें (तारीख के साथ)',
+                        '2. परिवार के सदस्यों से बात करें',
+                        '3. काउंसलिंग का प्रयास करें',
+                        '4. अगर जरूरी हो तो FIR/complaint दर्ज करें'
+                    ],
+                    'proofs_needed': [
+                        '💍 शादी का प्रमाण पत्र',
+                        '📝 घटनाओं की लिखित डायरी',
+                        '💬 Messages/चैट स्क्रीनशॉट',
+                        '👥 गवाहों के नाम',
+                        '🏥 चोट की रिपोर्ट (यदि हिंसा हुई हो)',
+                        '🎥 वीडियो/ऑडियो (यदि हो)'
+                    ],
+                    'document_type': 'petition'
+                }
+            },
+            'labor_issue': {
+                'message': 'ठीक है। अपनी नौकरी/मजदूरी की समस्या बताइए।',
+                'questions': [
+                    {
+                        'key': 'full_problem_description',
+                        'label': 'क्या हुआ? कितने दिन से काम कर रहे हैं? क्या समस्या है? पूरी बात बताइए।',
+                        'type': 'textarea',
+                        'placeholder': 'पूरी समस्या विस्तार से'
+                    },
+                    {
+                        'key': 'your_details',
+                        'label': 'अपना नाम, पता और मालिक/कंपनी का नाम बताइए',
+                        'type': 'text',
+                        'placeholder': 'आपकी और कंपनी की जानकारी'
+                    }
+                ],
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. मजदूरी की slip/record इकट्ठा करें',
+                        '2. साथी मजदूरों से गवाही लें',
+                        '3. Labour Office में शिकायत दर्ज करें',
+                        '4. कानूनी नोटिस भेजें'
+                    ],
+                    'proofs_needed': [
+                        '📝 नियुक्ति पत्र (Appointment letter)',
+                        '💰 वेतन की slip',
+                        '📅 उपस्थिति रजिस्टर (Attendance)',
+                        '👥 साथी कर्मचारियों के नाम',
+                        '💬 मालिक के साथ communication',
+                        '🏦 बैंक statement (वेतन का प्रमाण)'
+                    ],
+                    'document_type': 'notice'
+                }
             },
             'consumer_complaint': {
-                'message': 'उपभोक्ता शिकायत के बारे में बताइए।',
+                'message': 'ठीक है। अपनी उपभोक्ता शिकायत बताइए।',
                 'questions': [
                     {
-                        'key': 'complaint_type',
-                        'label': 'शिकायत का प्रकार',
-                        'options': [
-                            {'label': 'खराब सामान/सेवा', 'value': 'defective_product'},
-                            {'label': 'गलत कीमत वसूली', 'value': 'overcharging'},
-                            {'label': 'वारंटी न मिलना', 'value': 'warranty_issue'},
-                            {'label': 'ठगी/धोखेबाजी', 'value': 'fraud'},
-                            {'label': 'अन्य', 'value': 'other'}
-                        ]
-                    },
-                    {
-                        'key': 'shop_name',
-                        'label': 'दुकान/कंपनी का नाम',
-                        'type': 'text',
-                        'placeholder': 'कहाँ से खरीदा?'
-                    },
-                    {
-                        'key': 'purchase_date',
-                        'label': 'खरीदारी कब की?',
-                        'type': 'text',
-                        'placeholder': 'तारीख (जैसे: 1 महीना पहले)'
-                    },
-                    {
-                        'key': 'amount_paid',
-                        'label': 'कितना पैसा दिया?',
-                        'type': 'text',
-                        'placeholder': 'राशि (जैसे: ₹5,000)'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'समस्या का विवरण',
+                        'key': 'full_problem_description',
+                        'label': 'क्या खरीदा? कहाँ से खरीदा? क्या समस्या है? कब खरीदा? पूरी बात बताइए।',
                         'type': 'textarea',
-                        'placeholder': 'क्या हुआ? क्या सबूत हैं (बिल, फोटो)?'
+                        'placeholder': 'पूरी शिकायत विस्तार से'
+                    },
+                    {
+                        'key': 'your_details',
+                        'label': 'अपना नाम, पता और दुकान/कंपनी का नाम बताइए',
+                        'type': 'text',
+                        'placeholder': 'आपकी और विक्रेता की जानकारी'
                     }
                 ],
-                'next_action': 'generate_notice'
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. दुकानदार से शिकायत करें (लिखित में)',
+                        '2. Consumer Forum में complaint दर्ज करें',
+                        '3. सभी bills और warranty सुरक्षित रखें',
+                        '4. अगर जरूरी हो तो नोटिस भेजें'
+                    ],
+                    'proofs_needed': [
+                        '🧾 खरीदी की रसीद/Bill',
+                        '📸 सामान की फोटो/वीडियो',
+                        '📄 Warranty card',
+                        '💬 दुकानदार से बातचीत का proof',
+                        '📝 शिकायत की copy',
+                        '👥 गवाहों के नाम (यदि हों)'
+                    ],
+                    'document_type': 'notice'
+                }
             },
             'others': {
-                'message': 'अपनी समस्या विस्तार से बताइए।',
+                'message': 'ठीक है। अपनी समस्या विस्तार से बताइए।',
                 'questions': [
                     {
-                        'key': 'problem_type',
-                        'label': 'समस्या का प्रकार',
-                        'type': 'text',
-                        'placeholder': 'समस्या क्या है?'
-                    },
-                    {
-                        'key': 'opposite_party',
-                        'label': 'विरोधी पक्ष कौन है?',
-                        'type': 'text',
-                        'placeholder': 'नाम या पहचान'
-                    },
-                    {
-                        'key': 'when_started',
-                        'label': 'समस्या कब शुरू हुई?',
-                        'type': 'text',
-                        'placeholder': 'तारीख या समय अवधि'
-                    },
-                    {
-                        'key': 'description',
-                        'label': 'पूरी स्थिति बताइए',
+                        'key': 'full_problem_description',
+                        'label': 'अपनी समस्या पूरी बताइए - क्या हुआ? कब से है? किसके साथ है?',
                         'type': 'textarea',
-                        'placeholder': 'विस्तार से क्या हुआ? कोई सबूत हैं?'
+                        'placeholder': 'पूरी समस्या विस्तार से'
                     },
                     {
-                        'key': 'relief_sought',
-                        'label': 'आप क्या चाहते हैं?',
+                        'key': 'your_details',
+                        'label': 'अपना नाम और पता बताइए',
                         'type': 'text',
-                        'placeholder': 'समाधान क्या है? (जैसे: वापसी, मुआवजा)'
+                        'placeholder': 'आपका नाम और पता'
                     }
                 ],
-                'next_action': 'generate_notice'
+                'next_action': 'analyze_and_suggest',
+                'suggestions': {
+                    'steps': [
+                        '1. अपनी समस्या लिखित में तैयार करें',
+                        '2. सभी सबूत इकट्ठा करें',
+                        '3. स्थानीय अधिकारियों से संपर्क करें',
+                        '4. कानूनी सलाह लें'
+                    ],
+                    'proofs_needed': [
+                        '📝 समस्या का लिखित विवरण',
+                        '📄 सभी संबंधित दस्तावेज़',
+                        '👥 गवाहों के नाम',
+                        '📸 फोटो/वीडियो (यदि हों)',
+                        '💬 संवाद/पत्राचार की copy',
+                        '📍 घटना/स्थान की जानकारी'
+                    ],
+                    'document_type': 'notice'
+                }
             }
         }
 
@@ -286,8 +262,12 @@ class ChatbotService:
         Returns:
             dict with next message and questions
         """
+        print(f"[DEBUG] process_user_input called with input: {user_input}")
+        print(f"[DEBUG] conversation_history: {conversation_history}")
+        
         # Determine current state based on conversation history
         current_state = self._determine_state(conversation_history)
+        print(f"[DEBUG] Determined state: {current_state}")
         
         if current_state == 'start':
             return self._handle_category_selection(user_input)
@@ -309,54 +289,177 @@ class ChatbotService:
 
     def _handle_category_selection(self, selected_category):
         """Handle category selection from initial menu"""
-        if selected_category not in self.conversation_flow:
+        # First try exact match
+        if selected_category in self.conversation_flow:
+            flow = self.conversation_flow[selected_category]
+            # Immediately ask first question
+            first_question = flow['questions'][0]
             return {
-                'error': 'Invalid category',
-                'message': 'कृपया सही विकल्प चुनें।'
+                'category': selected_category,
+                'message': flow['message'] + '\n\n' + first_question['label'],
+                'question': first_question,
+                'question_key': first_question['key'],
+                'progress': f"1/{len(flow['questions'])} प्रश्न",
+                'next_action': flow['next_action']
             }
         
-        flow = self.conversation_flow[selected_category]
+        # Try to match from natural language input
+        category_keywords = {
+            'police_harassment': [
+                'पुलिस', 'police', 'गिरफ्तारी', 'arrest', 'हिरासत', 'fir', 
+                'मारपीट', 'torture', 'रिश्वत', 'bribe', 'बिना वारंट'
+            ],
+            'property_dispute': [
+                'जमीन', 'land', 'संपत्ति', 'property', 'मकान', 'house', 
+                'खेत', 'field', 'सीमा', 'boundary', 'मालिकाना', 'ownership',
+                'किराया', 'rent', 'दुकान', 'shop'
+            ],
+            'family_matter': [
+                'परिवार', 'family', 'शादी', 'marriage', 'तलाक', 'divorce',
+                'पत्नी', 'wife', 'पति', 'husband', 'बच्चे', 'children',
+                'विरासत', 'inheritance', 'दहेज', 'dowry'
+            ],
+            'labor_issue': [
+                'नौकरी', 'job', 'मजदूरी', 'labor', 'वेतन', 'salary', 'पैसा', 'payment',
+                'काम', 'work', 'निकाल', 'termination', 'मालिक', 'employer',
+                'कर्मचारी', 'employee', 'छुट्टी', 'leave'
+            ],
+            'consumer_complaint': [
+                'उपभोक्ता', 'consumer', 'खरीदारी', 'shopping', 'सामान', 'product',
+                'दुकान', 'shop', 'सेवा', 'service', 'खराब', 'defective',
+                'वारंटी', 'warranty', 'रिफंड', 'refund', 'ठगी', 'fraud'
+            ],
+            'others': [
+                'अन्य', 'other', 'कुछ', 'something', 'और', 'else'
+            ]
+        }
+        
+        # Convert input to lowercase for matching
+        input_lower = selected_category.lower()
+        
+        # Try to find best match
+        max_matches = 0
+        best_category = None
+        
+        for category, keywords in category_keywords.items():
+            matches = sum(1 for keyword in keywords if keyword.lower() in input_lower)
+            if matches > max_matches:
+                max_matches = matches
+                best_category = category
+        
+        # If we found a good match, use it
+        if best_category and max_matches > 0:
+            flow = self.conversation_flow[best_category]
+            # Return category confirmation and ask first question
+            first_question = flow['questions'][0]
+            return {
+                'category': best_category,
+                'message': flow['message'] + '\n\n' + first_question['label'],
+                'question': first_question,
+                'question_key': first_question['key'],
+                'progress': f"1/{len(flow['questions'])} प्रश्न",
+                'next_action': flow['next_action']
+            }
+        
+        # If no match, ask user to clarify
         return {
-            'category': selected_category,
-            'message': flow['message'],
-            'questions': flow['questions'],
-            'next_action': flow['next_action']
+            'error': 'unclear_category',
+            'message': 'मुझे समझ नहीं आया। कृपया इनमें से चुनें:\n\n' + 
+                      '🚔 पुलिस की परेशानी के लिए "पुलिस" बोलें\n' +
+                      '🏠 जमीन/संपत्ति के लिए "जमीन" या "संपत्ति" बोलें\n' +
+                      '👨‍👩‍👧‍👦 परिवार के मामले के लिए "परिवार" बोलें\n' +
+                      '💼 नौकरी/मजदूरी के लिए "नौकरी" या "मजदूरी" बोलें\n' +
+                      '🛍️ उपभोक्ता शिकायत के लिए "उपभोक्ता" बोलें\n' +
+                      '📋 कुछ और के लिए "अन्य" बोलें',
+            'retry': True
         }
 
     def _handle_information_collection(self, category, user_input, history):
         """Collect and validate user information"""
+        print(f"[DEBUG] _handle_information_collection called")
+        print(f"[DEBUG] category: {category}")
+        print(f"[DEBUG] user_input: {user_input}")
+        print(f"[DEBUG] history length: {len(history)}")
+        
         if category not in self.conversation_flow:
             return {'error': 'Invalid category'}
         
         flow = self.conversation_flow[category]
         questions = flow['questions']
+        print(f"[DEBUG] Total questions for this category: {len(questions)}")
         
-        # Count how many questions have been answered
-        answered_count = len([h for h in history if h.get('type') == 'user_input'])
+        # Find the last question that was asked by the bot
+        last_question_key = None
+        for msg in reversed(history):
+            if msg.get('type') == 'bot_question' and msg.get('question_key'):
+                last_question_key = msg.get('question_key')
+                break
+        
+        print(f"[DEBUG] Last question key: {last_question_key}")
+        
+        # Count answers that have been stored with question keys
+        answers_dict = {}
+        for msg in history:
+            if msg.get('type') == 'user_answer' and msg.get('question_key'):
+                answers_dict[msg.get('question_key')] = msg.get('content')
+        
+        answered_count = len(answers_dict)
+        print(f"[DEBUG] Answers collected so far: {answered_count}")
+        print(f"[DEBUG] Answers dict: {answers_dict}")
+        
+        # Check if we just received an answer to the last question
+        if last_question_key and last_question_key not in answers_dict:
+            # This is an answer to the last question asked
+            # Store it and move to next question
+            answered_count += 1
+            print(f"[DEBUG] This is an answer to the last question. New count: {answered_count}")
         
         if answered_count < len(questions):
             # More questions to ask
             next_question = questions[answered_count]
+            print(f"[DEBUG] Asking next question: {next_question['key']}")
             return {
                 'message': next_question['label'],
                 'question': next_question,
-                'progress': f"{answered_count}/{len(questions)} प्रश्न उत्तरित"
+                'question_key': next_question['key'],
+                'progress': f"{answered_count + 1}/{len(questions)} प्रश्न"
             }
         else:
             # All questions answered, ready to generate document
+            # Extract final data
+            final_data = answers_dict.copy()
+            if last_question_key and last_question_key not in final_data:
+                final_data[last_question_key] = user_input
+            
+            print(f"[DEBUG] All questions answered! Final data: {final_data}")
+            
+            # Get suggestions for this category
+            suggestions = flow.get('suggestions', {})
+            steps = suggestions.get('steps', [])
+            proofs = suggestions.get('proofs_needed', [])
+            
+            response_message = 'बहुत बढ़िया! मैंने आपकी समस्या समझ ली है।\n\n'
+            response_message += '📋 आगे क्या करना है:\n' + '\n'.join(steps) + '\n\n'
+            response_message += '📎 जरूरी सबूत/दस्तावेज़:\n' + '\n'.join(proofs)
+            
             return {
-                'message': 'धन्यवाद! आपकी जानकारी तैयार है।',
+                'message': response_message,
                 'completed': True,
                 'action': flow['next_action'],
-                'data': self._extract_conversation_data(history)
+                'data': final_data,
+                'suggestions': suggestions
             }
 
     def _extract_conversation_data(self, history):
         """Extract structured data from conversation"""
         data = {}
         for msg in history:
-            if msg.get('type') == 'user_input':
-                data[msg.get('key')] = msg.get('value')
+            if msg.get('type') == 'user_answer' and msg.get('question_key'):
+                data[msg.get('question_key')] = msg.get('content')
+            elif msg.get('type') == 'user_input':
+                # Fallback for old structure
+                if msg.get('key'):
+                    data[msg.get('key')] = msg.get('value') or msg.get('content')
         return data
 
     def get_suggested_action(self, conversation_data):

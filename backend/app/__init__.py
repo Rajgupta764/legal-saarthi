@@ -31,6 +31,7 @@ def create_app():
     from app.routes.scheme_routes import scheme_bp
     from app.routes.legal_education_routes import legal_education_bp
     from app.routes.chatbot_routes import chatbot_bp
+    from app.routes.speech_routes import speech_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(document_bp, url_prefix='/api')
@@ -40,6 +41,7 @@ def create_app():
     app.register_blueprint(scheme_bp, url_prefix='/api')
     app.register_blueprint(legal_education_bp, url_prefix='/api/legal-education')
     app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
+    app.register_blueprint(speech_bp)
     
     # Health check route
     @app.route('/api/health', methods=['GET'])
@@ -61,6 +63,9 @@ def create_app():
     
     @app.errorhandler(500)
     def internal_error(error):
+        print(f"500 Error Handler: {str(error)}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': 'Internal server error',

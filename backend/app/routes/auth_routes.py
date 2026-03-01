@@ -72,6 +72,9 @@ def login():
         return jsonify(result), status_code
     
     except Exception as e:
+        print(f"Login error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e),

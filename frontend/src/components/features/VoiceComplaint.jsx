@@ -11,6 +11,10 @@ const VoiceComplaint = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('hi-IN')
   
   const recognitionRef = useRef(null)
+  const isRecordingRef = useRef(false)
+  const stopRequestedRef = useRef(false)
+  const restartTimeoutRef = useRef(null)
+  const finalTranscriptRef = useRef('')
 
   const languages = [
     { code: 'hi-IN', name: 'हिंदी', flag: '🇮🇳' },
@@ -20,6 +24,35 @@ const VoiceComplaint = () => {
     { code: 'mr-IN', name: 'मराठी', flag: '🇮🇳' },
     { code: 'bn-IN', name: 'বাংলা', flag: '🇮🇳' }
   ]
+
+  const mergeWithOverlap = (baseText, incomingText) => {
+    const base = baseText.trim()
+    const incoming = incomingText.trim()
+
+    if (!base) return incoming
+    if (!incoming) return base
+    if (base === incoming) return base
+
+    const baseWords = base.split(/\s+/)
+    const incomingWords = incoming.split(/\s+/)
+    const maxOverlap = Math.min(baseWords.length, incomingWords.length)
+
+    for (let overlap = maxOverlap; overlap >= 1; overlap--) {
+      const baseTail = baseWords.slice(-overlap).join(' ').toLowerCase()
+      const incomingHead = incomingWords.slice(0, overlap).join(' ').toLowerCase()
+
+      if (baseTail === incomingHead) {
+        const remainder = incomingWords.slice(overlap).join(' ')
+        return remainder ? `${base} ${remainder}` : base
+      }
+    }
+
+    return `${base} ${incoming}`
+  }
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording
+  }, [isRecording])
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -33,30 +66,37 @@ const VoiceComplaint = () => {
     recognition.continuous = true
     recognition.interimResults = true
     recognition.lang = selectedLanguage
+    recognition.maxAlternatives = 1
 
     recognition.onresult = (event) => {
-      let finalTranscript = ''
+      let finalChunk = ''
       let interimTranscript = ''
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) {
-          finalTranscript += result[0].transcript + ' '
+          finalChunk += result[0].transcript + ' '
         } else {
           interimTranscript += result[0].transcript
         }
       }
 
-      setTranscript((prev) => {
-        if (finalTranscript) return prev + finalTranscript
-        return prev.split(' ').slice(0, -1).join(' ') + ' ' + interimTranscript
-      })
+      if (finalChunk) {
+        finalTranscriptRef.current = mergeWithOverlap(finalTranscriptRef.current, finalChunk)
+      }
+
+      const composedText = [finalTranscriptRef.current, interimTranscript.trim()].filter(Boolean).join(' ').trim()
+      setTranscript(composedText)
     }
 
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error)
-      if (event.error === 'no-speech') {
-        setError('आवाज़ नहीं सुनाई दी। कृपया फिर से बोलें।')
+      const expectedErrors = new Set(['aborted', 'no-speech'])
+      if (!expectedErrors.has(event.error)) {
+        console.error('Speech recognition error:', event.error)
+      }
+
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return
       } else if (event.error === 'audio-capture') {
         setError('माइक्रोफ़ोन नहीं मिला। कृपया जांचें।')
       } else if (event.error === 'not-allowed') {
@@ -68,26 +108,59 @@ const VoiceComplaint = () => {
     }
 
     recognition.onend = () => {
-      if (isRecording) recognition.start()
+      if (isRecordingRef.current && !stopRequestedRef.current) {
+        restartTimeoutRef.current = setTimeout(() => {
+          if (!isRecordingRef.current || stopRequestedRef.current || !recognitionRef.current) {
+            return
+          }
+          try {
+            recognitionRef.current.start()
+          } catch (e) {
+            if (e?.name !== 'InvalidStateError') {
+              console.error('Error restarting recognition:', e)
+            }
+          }
+        }, 300)
+      }
     }
 
     recognitionRef.current = recognition
 
     return () => {
+      stopRequestedRef.current = true
+      if (restartTimeoutRef.current) {
+        clearTimeout(restartTimeoutRef.current)
+      }
       if (recognitionRef.current) recognitionRef.current.stop()
     }
-  }, [isRecording, selectedLanguage])
+  }, [selectedLanguage])
 
   const startRecording = () => {
     setError(null)
     setResult(null)
     setTranscript('')
+    finalTranscriptRef.current = ''
+    stopRequestedRef.current = false
     setIsRecording(true)
-    if (recognitionRef.current) recognitionRef.current.start()
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start()
+      } catch (e) {
+        if (e?.name !== 'InvalidStateError') {
+          console.error('Error starting recognition:', e)
+        }
+        setError('आवाज़ पहचान शुरू नहीं हो सकी। कृपया पुनः प्रयास करें।')
+        setIsRecording(false)
+      }
+    }
   }
 
   const stopRecording = () => {
+    stopRequestedRef.current = true
     setIsRecording(false)
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current)
+    }
     if (recognitionRef.current) recognitionRef.current.stop()
   }
 
