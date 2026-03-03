@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -7,6 +7,43 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  
+  // Rural images for the slideshow
+  const ruralImages = [
+    {
+      src: '/images/anilsharma26-village-7773706_1920.jpg',
+      caption: 'गांव के लिए न्याय'
+    },
+    {
+      src: '/images/ravendrasingh-people-7462886_1920.jpg',
+      caption: 'आपके अधिकार, आपकी भाषा'
+    },
+    {
+      src: '/images/bsbasan-rural-4342078_1920.jpg',
+      caption: 'ग्रामीण भारत सशक्त भारत'
+    },
+    {
+      src: '/images/swastikarora-man-8043010_1920.jpg',
+      caption: 'कानून से डर नहीं, सहयोग'
+    },
+    {
+      src: '/images/pankajkr0522-sunset-5312492_1920.jpg',
+      caption: 'न्याय तक आसान पहुंच'
+    },
+    {
+      src: '/images/anilsharma26-pottery-7773694_1920.jpg',
+      caption: 'परंपरा और न्याय का संगम'
+    }
+  ]
+
+  // Auto-rotate images
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % ruralImages.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
   
   // Form fields
   const [name, setName] = useState('')
@@ -80,24 +117,133 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-saffron-50 via-white to-trust-50 flex items-center justify-center p-4">
-      {/* Background decorations */}
-      <div className="absolute top-20 left-10 w-72 h-72 bg-saffron-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float"></div>
-      <div className="absolute bottom-20 right-10 w-72 h-72 bg-trust-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-float" style={{ animationDelay: '2s' }}></div>
-
-      <div className="w-full max-w-sm relative z-10">
-        {/* Logo / Brand */}
-        <div className="text-center mb-5">
-          <Link to="/" className="inline-flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-saffron-500 to-trust-600 rounded-lg flex items-center justify-center shadow-lg">
-              <span className="text-xl">⚖️</span>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Left Side - Rural Images & Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-saffron-600 via-saffron-500 to-trust-600 relative overflow-hidden">
+        {/* Image Slideshow */}
+        <div className="absolute inset-0">
+          {ruralImages.map((image, index) => (
+            <div
+              key={index}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                index === currentImageIndex ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <img 
+                src={image.src} 
+                alt={image.caption}
+                className="w-full h-full object-cover"
+              />
+              {/* Dark overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-saffron-900/80 via-saffron-800/70 to-trust-900/80"></div>
             </div>
-            <span className="text-xl font-bold gradient-text">Legal Saathi</span>
-          </Link>
+          ))}
         </div>
 
-        {/* Auth Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+        {/* Content Overlay */}
+        <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full">
+          {/* Logo & Brand */}
+          <div>
+            <Link to="/" className="inline-flex items-center space-x-3">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
+                <span className="text-2xl">⚖️</span>
+              </div>
+              <span className="text-2xl font-bold">Legal Saathi</span>
+            </Link>
+          </div>
+
+          {/* Main Message */}
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h1 className="text-4xl font-bold leading-tight">
+                गाँव के लिए<br />
+                कानूनी सहयोग
+              </h1>
+              <p className="text-xl text-white/90 max-w-md">
+                {ruralImages[currentImageIndex].caption}
+              </p>
+            </div>
+
+            <div className="space-y-3 max-w-md">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-lg">🤝</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">भरोसे के साथ</h3>
+                  <p className="text-sm text-white/80">कानून आपके साथ है, सरल हिंदी में समझें</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-lg">💪</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">सशक्तिकरण</h3>
+                  <p className="text-sm text-white/80">अपने अधिकारों को जानें और उपयोग करें</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-lg">🛡️</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">मुफ्त सहायता</h3>
+                  <p className="text-sm text-white/80">AI की मदद से कानूनी मार्गदर्शन</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Image indicators */}
+            <div className="flex gap-2 pt-4">
+              {ruralImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`h-1 rounded-full transition-all ${
+                    index === currentImageIndex 
+                      ? 'w-8 bg-white' 
+                      : 'w-6 bg-white/40 hover:bg-white/60'
+                  }`}
+                  aria-label={`View image ${index + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="flex gap-8">
+            <div>
+              <p className="text-3xl font-bold">10K+</p>
+              <p className="text-sm text-white/80">Active Users</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold">500+</p>
+              <p className="text-sm text-white/80">Villages</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold">95%</p>
+              <p className="text-sm text-white/80">Satisfaction</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Auth Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-6">
+            <Link to="/" className="inline-flex items-center space-x-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-saffron-500 to-trust-600 rounded-lg flex items-center justify-center shadow-lg">
+                <span className="text-xl">⚖️</span>
+              </div>
+              <span className="text-xl font-bold gradient-text">Legal Saathi</span>
+            </Link>
+          </div>
+
+          {/* Auth Card */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
           {/* Tab Toggle */}
           <div className="flex bg-gray-100 rounded-lg p-1 mb-5">
             <button
@@ -292,16 +438,17 @@ const Auth = () => {
               {isLogin ? 'रजिस्टर करें' : 'लॉगिन करें'}
             </button>
           </p>
-        </div>
+          </div>
 
-        {/* Back to Home */}
-        <div className="text-center mt-4">
-          <Link to="/" className="text-gray-500 hover:text-gray-700 text-xs inline-flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            <span>होम पेज पर वापस जाएं</span>
-          </Link>
+          {/* Back to Home */}
+          <div className="text-center mt-6">
+            <Link to="/" className="text-gray-500 hover:text-gray-700 text-xs inline-flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>होम पेज पर वापस जाएं</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

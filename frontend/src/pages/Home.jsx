@@ -1,7 +1,20 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import VoiceAssistant from '../components/features/VoiceAssistant'
+import BackToTop from '../components/common/BackToTop'
+import TrustBadges from '../components/common/TrustBadges'
+import { useAnimatedCounter } from '../hooks/useAnimatedCounter'
+import { useScrollAnimation } from '../hooks/useScrollAnimation'
 
 const Home = () => {
+  const [language, setLanguage] = useState('hi')
+  const [statsRef, isStatsVisible] = useScrollAnimation()
+  const [openFaq, setOpenFaq] = useState(null)
+  
+  // Animated counters
+  const userCount = useAnimatedCounter(10000, 2000, isStatsVisible)
+  const villageCount = useAnimatedCounter(500, 2000, isStatsVisible)
+  const satisfactionCount = useAnimatedCounter(95, 2000, isStatsVisible)
   const features = [
     {
       id: 'document',
@@ -73,10 +86,51 @@ const Home = () => {
     }
   ]
 
-  const stats = [
-    { value: '10K+', label: 'Users' },
-    { value: '500+', label: 'Villages' },
-    { value: '95%', label: 'Satisfaction' }
+  const testimonials = [
+    {
+      name: 'रामेश्वर यादव',
+      location: 'गाँव: रामपुर, बिहार',
+      text: 'FIR लिखने में बहुत मदद मिली। AI ने सरल हिंदी में सब समझाया। धन्यवाद!',
+      rating: 5,
+      case: 'FIR मामला'
+    },
+    {
+      name: 'सुनीता देवी',
+      location: 'गाँव: भगवानपुर, UP',
+      text: 'कानूनी दस्तावेज़ समझने में मुश्किल होती थी। अब Legal Saathi से आसान हो गया।',
+      rating: 5,
+      case: 'संपत्ति विवाद'
+    },
+    {
+      name: 'मोहन सिंह',
+      location: 'गाँव: खेड़ी, राजस्थान',
+      text: 'सरकारी योजना की जानकारी मिली। अब मुझे मेरा हक मिल गया।',
+      rating: 5,
+      case: 'सरकारी योजना'
+    }
+  ]
+
+  const faqs = [
+    {
+      question: 'क्या यह सेवा सच में मुफ्त है?',
+      answer: 'हाँ, Legal Saathi की सभी मूल सेवाएं पूरी तरह से मुफ्त हैं। हम ग्रामीण भारत को कानूनी मदद देने के लिए प्रतिबद्ध हैं।'
+    },
+    {
+      question: 'क्या AI सलाह भरोसेमंद है?',
+      answer: 'हमारा AI भारतीय कानून पर प्रशिक्षित है और सटीक जानकारी देता है। लेकिन जटिल मामलों में हम आपको वकील से मिलने की सलाह देते हैं।'
+    },
+    {
+      question: 'मुझे इंटरनेट नहीं आता, क्या करूं?',
+      answer: 'आप Voice Assistant का इस्तेमाल कर सकते हैं - बस बोलिए और AI सुनेगा। कोई टाइपिंग की जरूरत नहीं।'
+    },
+    {
+      question: 'मेरी जानकारी सुरक्षित रहेगी?',
+      answer: 'हाँ, आपकी सभी जानकारी एन्क्रिप्टेड और पूरी तरह सुरक्षित है। हम आपकी गोपनीयता का पूरा ध्यान रखते हैं।'
+    },
+    {
+      question: 'किन-किन भाषाओं में सेवा उपलब्ध है?',
+      answer: 'वर्तमान में हिंदी और अंग्रेजी में उपलब्ध है। जल्द ही अन्य क्षेत्रीय भाषाएं भी जोड़ी जाएंगी।'
+    }
   ]
 
   const steps = [
@@ -88,7 +142,7 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-saffron-500 rounded-lg flex items-center justify-center">
@@ -96,12 +150,23 @@ const Home = () => {
             </div>
             <span className="font-semibold text-gray-800">Legal Saathi</span>
           </Link>
-          <Link
-            to="/auth"
-            className="px-4 py-2 bg-saffron-500 text-white text-sm font-medium rounded-lg hover:bg-saffron-600 transition-colors"
-          >
-            Start
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-saffron-500 bg-white"
+            >
+              <option value="hi">हिंदी</option>
+              <option value="en">English</option>
+            </select>
+            <Link
+              to="/auth"
+              className="px-4 py-2 bg-saffron-500 text-white text-sm font-medium rounded-lg hover:bg-saffron-600 transition-colors"
+            >
+              Start
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -134,14 +199,107 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-8 mt-10 pt-6 border-t border-gray-100">
-            {stats.map((stat, idx) => (
-              <div key={idx}>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-sm text-gray-500">{stat.label}</p>
-              </div>
-            ))}
+          {/* Stats - Animated */}
+          <div ref={statsRef} className="flex gap-8 mt-10 pt-6 border-t border-gray-100">
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{userCount.toLocaleString()}+</p>
+              <p className="text-sm text-gray-500">Active Users</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{villageCount}+</p>
+              <p className="text-sm text-gray-500">Villages Reached</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{satisfactionCount}%</p>
+              <p className="text-sm text-gray-500">Satisfaction Rate</p>
+            </div>
+          </div>
+
+          {/* Trust Badges */}
+          <div className="mt-8">
+            <TrustBadges />
+          </div>
+        </div>
+      </section>
+
+      {/* Rural Impact Section */}
+      <section className="py-12 bg-gradient-to-b from-saffron-50 to-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              गाँव के लोगों के लिए कानूनी शक्ति
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto mb-2">
+              हम भारत के गांवों को कानूनी ज्ञान से सशक्त बना रहे हैं। अब कानून से डरने की जरूरत नहीं - आपके अधिकार, आपकी भाषा में।
+            </p>
+            <p className="text-saffron-600 font-medium">
+              Empowering Rural India - No Fear, Just Rights
+            </p>
+          </div>
+
+          {/* Image Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/anilsharma26-village-7773706_1920.jpg" 
+                alt="Rural village life"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/ravendrasingh-people-7462886_1920.jpg" 
+                alt="Rural community"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/bsbasan-rural-4342078_1920.jpg" 
+                alt="Rural landscape"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/anilsharma26-pottery-7773694_1920.jpg" 
+                alt="Traditional rural crafts"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/swastikarora-man-8043010_1920.jpg" 
+                alt="Rural people"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow">
+              <img 
+                src="/images/pankajkr0522-sunset-5312492_1920.jpg" 
+                alt="Rural sunset"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+          </div>
+
+          {/* Trust Building Messages */}
+          <div className="grid md:grid-cols-3 gap-4 mt-8">
+            <div className="bg-white rounded-lg p-5 border border-gray-200 text-center">
+              <div className="text-3xl mb-2">🤝</div>
+              <h3 className="font-semibold text-gray-900 mb-1">विश्वास के साथ</h3>
+              <p className="text-sm text-gray-600">कानून आपके साथ है, आपके खिलाफ नहीं</p>
+            </div>
+            <div className="bg-white rounded-lg p-5 border border-gray-200 text-center">
+              <div className="text-3xl mb-2">💪</div>
+              <h3 className="font-semibold text-gray-900 mb-1">सशक्तिकरण</h3>
+              <p className="text-sm text-gray-600">अपने अधिकारों को जानें और उनका उपयोग करें</p>
+            </div>
+            <div className="bg-white rounded-lg p-5 border border-gray-200 text-center">
+              <div className="text-3xl mb-2">🛡️</div>
+              <h3 className="font-semibold text-gray-900 mb-1">सुरक्षा</h3>
+              <p className="text-sm text-gray-600">कानूनी मुद्दों में अब अकेले नहीं</p>
+            </div>
           </div>
         </div>
       </section>
@@ -197,41 +355,184 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-12">
+      {/* Testimonials Section */}
+      <section className="py-12 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="bg-saffron-500 rounded-lg p-8 text-center">
-            <h2 className="text-xl font-semibold text-white mb-2">
-              Ready to get started?
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              लोगों की सच्ची कहानियाँ
             </h2>
-            <p className="text-saffron-100 text-sm mb-6">
-              Access free legal assistance in Hindi
+            <p className="text-gray-600">हजारों लोगों ने अपने कानूनी मामलों में Legal Saathi से मदद ली</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {testimonials.map((testimonial, idx) => (
+              <div key={idx} className="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-shadow">
+                <div className="flex gap-1 mb-3">
+                  {[...Array(testimonial.rating)].map((_, i) => (
+                    <span key={i} className="text-yellow-400">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 text-sm mb-4 leading-relaxed">"{testimonial.text}"</p>
+                <div className="border-t pt-4">
+                  <p className="font-semibold text-gray-900">{testimonial.name}</p>
+                  <p className="text-xs text-gray-500">{testimonial.location}</p>
+                  <span className="inline-block mt-2 px-2 py-1 bg-saffron-50 text-saffron-600 text-xs rounded-full">
+                    {testimonial.case}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-12 bg-white">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              आम सवाल (FAQ)
+            </h2>
+            <p className="text-gray-600">आपके मन में होने वाले कानूनी सवालों के जवाब</p>
+          </div>
+
+          <div className="space-y-3">
+            {faqs.map((faq, idx) => (
+              <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                >
+                  <span className="font-medium text-gray-900">{faq.question}</span>
+                  <svg
+                    className={`w-5 h-5 text-gray-500 transition-transform ${
+                      openFaq === idx ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {openFaq === idx && (
+                  <div className="px-6 pb-4 text-gray-600 text-sm leading-relaxed bg-gray-50">
+                    {faq.answer}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-12 bg-gradient-to-r from-saffron-500 to-trust-600">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center text-white">
+            <h2 className="text-2xl md:text-3xl font-bold mb-3">
+              अपने कानूनी अधिकार जानें, आज ही!
+            </h2>
+            <p className="text-white/90 mb-6 max-w-2xl mx-auto">
+              मुफ्त AI-powered कानूनी मदद - कोई छुपा चार्ज नहीं, कोई जटिल प्रक्रिया नहीं
             </p>
-            <Link
-              to="/auth"
-              className="inline-block px-6 py-2.5 bg-white text-saffron-600 text-sm font-medium rounded-lg hover:bg-saffron-50 transition-colors"
-            >
-              Start Now - Free
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                to="/auth"
+                className="inline-block px-8 py-3 bg-white text-saffron-600 font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-lg"
+              >
+                मुफ्त में शुरू करें 🚀
+              </Link>
+              <a
+                href="#features"
+                className="inline-block px-8 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white/10 transition-colors"
+              >
+                और जानें
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-6">
-        <div className="max-w-6xl mx-auto px-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-saffron-500 rounded flex items-center justify-center">
-              <span className="text-white text-xs">⚖️</span>
+      <footer className="bg-gray-900 text-gray-300 py-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-saffron-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm">⚖️</span>
+                </div>
+                <span className="font-bold text-white text-lg">Legal Saathi</span>
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                ग्रामीण भारत के लिए AI-powered मुफ्त कानूनी सहायता
+              </p>
             </div>
-            <span className="text-sm text-gray-600">Legal Saathi</span>
+
+            {/* Quick Links */}
+            <div>
+              <h3 className="font-semibold text-white mb-3">Quick Links</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#features" className="hover:text-saffron-400 transition-colors">Features</a></li>
+                <li><Link to="/auth" className="hover:text-saffron-400 transition-colors">Get Started</Link></li>
+                <li><a href="#faq" className="hover:text-saffron-400 transition-colors">FAQ</a></li>
+                <li><a href="#testimonials" className="hover:text-saffron-400 transition-colors">Testimonials</a></li>
+              </ul>
+            </div>
+
+            {/* Services */}
+            <div>
+              <h3 className="font-semibold text-white mb-3">Services</h3>
+              <ul className="space-y-2 text-sm">
+                <li><span className="text-gray-400">Document Analysis</span></li>
+                <li><span className="text-gray-400">Voice Complaint</span></li>
+                <li><span className="text-gray-400">Legal Aid Finder</span></li>
+                <li><span className="text-gray-400">FIR Drafting</span></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h3 className="font-semibold text-white mb-3">Contact</h3>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <span>📧</span>
+                  <span className="text-gray-400">help@legalsaathi.org</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span>📞</span>
+                  <span className="text-gray-400">1800-XXX-XXXX</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span>🌐</span>
+                  <span className="text-gray-400">Available in हिंदी</span>
+                </li>
+              </ul>
+            </div>
           </div>
-          <p className="text-xs text-gray-500">© 2026 Legal Saathi. All rights reserved.</p>
+
+          {/* Bottom Bar */}
+          <div className="border-t border-gray-800 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-xs text-gray-500">
+              © 2026 Legal Saathi. All rights reserved. Made with ❤️ for Rural India
+            </p>
+            <div className="flex gap-4 text-xs">
+              <a href="#" className="hover:text-saffron-400 transition-colors">Privacy Policy</a>
+              <a href="#" className="hover:text-saffron-400 transition-colors">Terms of Service</a>
+              <a href="#" className="hover:text-saffron-400 transition-colors">Disclaimer</a>
+            </div>
+          </div>
         </div>
       </footer>
 
       {/* Floating Voice Assistant */}
       <VoiceAssistant />
+      
+      {/* Back to Top Button */}
+      <BackToTop />
     </div>
   )
 }
