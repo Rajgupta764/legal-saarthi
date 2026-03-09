@@ -98,6 +98,15 @@ const DocumentUpload = () => {
       if (response.data.success) {
         setResult(response.data.data)
         setStep(3)
+        // Auto-save scan result to Document Vault
+        const r = response.data.data
+        api.post('/profile/documents', {
+          name: file.name,
+          type: r.document_type || 'Scanned Document',
+          content: r.simplified_text || r.extracted_text || '',
+          source: 'scan',
+        }).catch(() => {})
+        api.post('/profile/activity', { type: 'document_check', details: { name: file.name } }).catch(() => {})
       } else {
         setError(response.data.message || 'विश्लेषण में त्रुटि हुई')
         setStep(1)

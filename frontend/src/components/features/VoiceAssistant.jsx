@@ -9,15 +9,15 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [language, setLanguage] = useState('hi-IN') // Hindi by default
-  const [conversation, setConversation] = useState([])
-  const [conversationData, setConversationData] = useState({})
-  const [currentStep, setCurrentStep] = useState('initial')
+  const [aiHistory, setAiHistory] = useState([])
   
   const recognitionRef = useRef(null)
   const synthesisRef = useRef(null)
+  const audioRef = useRef(null)
   const messagesEndRef = useRef(null)
   const isListeningRef = useRef(false)
   const stopListeningRequestedRef = useRef(false)
+  const speechSessionRef = useRef(0) // tracks current speech session to prevent overlaps
 
   useEffect(() => {
     isListeningRef.current = isListening
@@ -123,27 +123,28 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
 
   const startVoiceAssistant = async () => {
     try {
-      const response = await api.get('/chatbot/start')
+      const lang = language === 'hi-IN' ? 'hi' : 'en'
+      const response = await api.get(`/chatbot/ai-chat/welcome?lang=${lang}`)
       if (response.data.success) {
         const initialMsg = response.data.data.message
-        const botMessage = {
-          type: 'bot',
-          content: initialMsg,
-          options: response.data.data.options
-        }
+        // Use a spoken-friendly version for voice
+        const spokenMsg = language === 'hi-IN'
+          ? 'नमस्ते! मैं कानूनी साथी हूँ। अपनी समस्या बताइए, मैं मदद करूँगी।'
+          : 'Hello! I am Legal Saathi. Tell me your problem, I will help.'
+        const botMessage = { type: 'bot', content: initialMsg }
         setMessages([botMessage])
-        setCurrentStep('category_selection')
-        
-        // Speak initial message and then start listening
-        speakMessage(initialMsg + ' बोलकर बताएं।', () => {
-          setTimeout(() => {
-            startListening()
-          }, 500)
+        setAiHistory([])
+        speakMessage(spokenMsg, () => {
+          setTimeout(() => startListening(), 500)
         })
       }
     } catch (error) {
       console.error('Error starting voice assistant:', error)
-      speakMessage('त्रुटि उत्पन्न हुई। कृपया पुनः प्रयास करें।')
+      const fallback = language === 'hi-IN'
+        ? 'नमस्ते! मैं कानूनी साथी हूँ। अपनी समस्या बताइए, मैं मदद करूँगी।'
+        : 'Hello! I am Legal Saathi. Tell me your problem, I will help.'
+      setMessages([{ type: 'bot', content: fallback }])
+      speakMessage(fallback, () => setTimeout(() => startListening(), 500))
     }
   }
 
@@ -171,424 +172,167 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     }
   }
 
-  const speakMessage = (text, onComplete = null) => {
+  const speakWithBrowser = (text, onComplete = null, sessionId = null) => {
+    // If session changed, abort
+    if (sessionId !== null && sessionId !== speechSessionRef.current) {
+      if (onComplete) onComplete()
+      return
+    }
     if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech
       window.speechSynthesis.cancel()
-      
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.lang = language
       utterance.rate = 0.9
       utterance.pitch = 1.1
       utterance.volume = 1
-
-      // Try to use a female voice
       const voices = window.speechSynthesis.getVoices()
-      const femaleVoice = voices.find(voice => 
-        (voice.lang.startsWith(language.split('-')[0]) && 
-         (voice.name.toLowerCase().includes('female') || 
-          voice.name.toLowerCase().includes('woman') ||
-          voice.name.toLowerCase().includes('zira') ||
-          voice.name.toLowerCase().includes('hazel') ||
-          voice.name.toLowerCase().includes('samantha')))
-      ) || voices.find(voice => voice.lang.startsWith(language.split('-')[0]))
-      
-      if (femaleVoice) {
-        utterance.voice = femaleVoice
-      }
-
+      const preferred = voices.find(v =>
+        v.lang.startsWith(language.split('-')[0]) &&
+        /female|woman|zira|hazel|samantha/i.test(v.name)
+      ) || voices.find(v => v.lang.startsWith(language.split('-')[0]))
+      if (preferred) utterance.voice = preferred
       utterance.onstart = () => setIsSpeaking(true)
-      utterance.onend = () => {
-        setIsSpeaking(false)
-        if (onComplete) onComplete()
-      }
-      utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event)
-        setIsSpeaking(false)
-        if (onComplete) onComplete()
-      }
-
+      utterance.onend = () => { setIsSpeaking(false); if (onComplete) onComplete() }
+      utterance.onerror = () => { setIsSpeaking(false); if (onComplete) onComplete() }
       setIsSpeaking(true)
-      
-      // Small delay to ensure previous speech is cancelled
-      setTimeout(() => {
-        window.speechSynthesis.speak(utterance)
-      }, 100)
+      setTimeout(() => window.speechSynthesis.speak(utterance), 100)
     } else if (onComplete) {
       onComplete()
     }
   }
 
-  const stopSpeaking = () => {
+  const speakMessage = async (text, onComplete = null) => {
+    // Increment session to cancel any previous in-flight speech
+    const sessionId = ++speechSessionRef.current
+
+    // Stop ALL ongoing audio and browser speech immediately
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
-      setIsSpeaking(false)
     }
+    setIsSpeaking(false)
+
+    // Also stop mic so bot voice isn't picked up as input
+    if (recognitionRef.current && isListeningRef.current) {
+      try { recognitionRef.current.stop() } catch(e) {}
+      setIsListening(false)
+    }
+
+    // Try AI TTS first for natural voice
+    try {
+      const lang = language === 'hi-IN' ? 'hi' : 'en'
+      const resp = await api.post('/chatbot/tts', { text, language: lang }, { responseType: 'blob' })
+
+      // Check if this session is still current (not superseded)
+      if (sessionId !== speechSessionRef.current) {
+        if (onComplete) onComplete()
+        return
+      }
+
+      if (resp.status === 200 && resp.data instanceof Blob && resp.data.size > 0) {
+        const url = URL.createObjectURL(resp.data)
+        const audio = new Audio(url)
+        audioRef.current = audio
+        audio.onplay = () => setIsSpeaking(true)
+        audio.onended = () => {
+          setIsSpeaking(false)
+          URL.revokeObjectURL(url)
+          if (audioRef.current === audio) audioRef.current = null
+          if (onComplete) onComplete()
+        }
+        audio.onerror = () => {
+          URL.revokeObjectURL(url)
+          if (audioRef.current === audio) audioRef.current = null
+          // Fallback to browser speech only if session still valid
+          speakWithBrowser(text, onComplete, sessionId)
+        }
+        audio.play()
+        return
+      }
+    } catch (err) {
+      // TTS unavailable
+    }
+
+    // If session was superseded during await, bail out
+    if (sessionId !== speechSessionRef.current) {
+      if (onComplete) onComplete()
+      return
+    }
+
+    // Fallback to browser speech
+    speakWithBrowser(text, onComplete, sessionId)
   }
 
-  const matchVoiceToOptions = (voiceInput, options) => {
-    if (!options || options.length === 0) return null
-    
-    const input = voiceInput.toLowerCase().trim()
-    
-    // Try exact match first
-    for (const option of options) {
-      if (option.label.toLowerCase() === input || option.value.toLowerCase() === input) {
-        return option.value
-      }
+  const stopSpeaking = () => {
+    // Bump session to invalidate any in-flight TTS requests
+    speechSessionRef.current++
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
     }
-    
-    // Try partial match
-    for (const option of options) {
-      const optionWords = option.label.toLowerCase().split(' ')
-      const inputWords = input.split(' ')
-      
-      // Check if any significant word matches
-      for (const optWord of optionWords) {
-        for (const inWord of inputWords) {
-          if (optWord.length > 2 && inWord.length > 2 && 
-              (optWord.includes(inWord) || inWord.includes(optWord))) {
-            return option.value
-          }
-        }
-      }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
     }
-    
-    return null
+    setIsSpeaking(false)
   }
+
 
 
   const handleVoiceInput = async (voiceText) => {
+    // Stop mic immediately so bot voice isn't re-captured
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch(e) {}
+    }
     setIsListening(false)
     
     // Add user message
-    const userMessage = {
-      type: 'user',
-      content: voiceText
-    }
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => [...prev, { type: 'user', content: voiceText }])
 
-    // Create conversation entry based on current step
-    let conversationEntry
-    
-    if (currentStep === 'category_selection') {
-      conversationEntry = {
-        type: 'user_input',
-        content: voiceText
-      }
-    } else if (currentStep === 'information_collection') {
-      // Get the last bot message to find which question this answers
-      const lastBotMsg = messages.filter(m => m.type === 'bot').pop()
-      conversationEntry = {
-        type: 'user_answer',
-        content: voiceText,
-        question_key: lastBotMsg?.question?.key || 'unknown'
-      }
-    } else {
-      conversationEntry = {
-        type: 'user_input',
-        content: voiceText
-      }
-    }
-    
-    const updatedConversation = [...conversation, conversationEntry]
-    setConversation(updatedConversation)
-
-    // Process input
-    await processVoiceInput(voiceText, updatedConversation)
-  }
-
-  const processVoiceInput = async (input, conversationHistory) => {
+    // Send to AI chat
     try {
       setIsProcessing(true)
+      const lang = language === 'hi-IN' ? 'hi' : 'en'
+      const updatedHistory = [...aiHistory, { role: 'user', content: voiceText }]
+      setAiHistory(updatedHistory)
 
-      // Comprehensive category mapping with synonyms and common phrases
-      const categoryMap = {
-        'पुलिस': 'police_harassment',
-        'पुलिस परेशानी': 'police_harassment',
-        'पुलिस की': 'police_harassment',
-        'गिरफ्तारी': 'police_harassment',
-        'हिरासत': 'police_harassment',
-        'मारपीट': 'police_harassment',
-        'एफआईआर': 'police_harassment',
-        'fir': 'police_harassment',
-        'police': 'police_harassment',
-        'arrest': 'police_harassment',
-        
-        'जमीन': 'property_dispute',
-        'संपत्ति': 'property_dispute',
-        'मकान': 'property_dispute',
-        'खेत': 'property_dispute',
-        'घर': 'property_dispute',
-        'प्रॉपर्टी': 'property_dispute',
-        'property': 'property_dispute',
-        'land': 'property_dispute',
-        'house': 'property_dispute',
-        'सीमा': 'property_dispute',
-        'boundary': 'property_dispute',
-        
-        'परिवार': 'family_matter',
-        'शादी': 'family_matter',
-        'तलाक': 'family_matter',
-        'पत्नी': 'family_matter',
-        'पति': 'family_matter',
-        'बच्चे': 'family_matter',
-        'family': 'family_matter',
-        'marriage': 'family_matter',
-        'divorce': 'family_matter',
-        'wife': 'family_matter',
-        'husband': 'family_matter',
-        'दहेज': 'family_matter',
-        
-        'नौकरी': 'labor_issue',
-        'मजदूरी': 'labor_issue',
-        'काम': 'labor_issue',
-        'वेतन': 'labor_issue',
-        'सैलरी': 'labor_issue',
-        'पैसा नहीं': 'labor_issue',
-        'payment': 'labor_issue',
-        'salary': 'labor_issue',
-        'job': 'labor_issue',
-        'labor': 'labor_issue',
-        'work': 'labor_issue',
-        'employer': 'labor_issue',
-        'मालिक': 'labor_issue',
-        
-        'उपभोक्ता': 'consumer_complaint',
-        'शिकायत': 'consumer_complaint',
-        'खरीदारी': 'consumer_complaint',
-        'सामान': 'consumer_complaint',
-        'दुकान': 'consumer_complaint',
-        'खराब': 'consumer_complaint',
-        'consumer': 'consumer_complaint',
-        'complaint': 'consumer_complaint',
-        'shop': 'consumer_complaint',
-        'product': 'consumer_complaint',
-        'defective': 'consumer_complaint',
-        
-        'कुछ और': 'others',
-        'अन्य': 'others',
-        'other': 'others',
-        'something else': 'others'
-      }
-
-      let userInput = input.toLowerCase().trim()
-      let matched = null
-
-      // Try to match category from voice input
-      // First, try exact phrase matching
-      for (const [key, value] of Object.entries(categoryMap)) {
-        if (userInput === key.toLowerCase() || userInput.includes(key.toLowerCase())) {
-          matched = value
-          break
-        }
-      }
-
-      // If no exact match, try word-by-word matching
-      if (!matched) {
-        const words = userInput.split(' ')
-        for (const word of words) {
-          for (const [key, value] of Object.entries(categoryMap)) {
-            if (word === key.toLowerCase() || key.toLowerCase().includes(word)) {
-              matched = value
-              break
-            }
-          }
-          if (matched) break
-        }
-      }
-
-      // If category matched and it's first selection
-      if (matched && currentStep === 'category_selection') {
-        const conversationEntry = {
-          type: 'user_selection',
-          selected_option: matched,
-          content: input
-        }
-        const updatedHistory = [conversationEntry]
-        setConversation(updatedHistory)
-        
-        const response = await api.post('/chatbot/message', {
-          user_input: matched,
-          conversation_history: updatedHistory
-        })
-
-        if (response.data.success) {
-          handleBotResponse(response.data.data)
-        } else {
-          // Handle error response
-          throw new Error(response.data.error || 'Invalid response')
-        }
-      } else if (currentStep === 'category_selection') {
-        // No match found, send raw input to backend for intelligent matching
-        const conversationEntry = {
-          type: 'user_input',
-          content: input
-        }
-        const updatedHistory = [conversationEntry]
-        setConversation(updatedHistory)
-        
-        const response = await api.post('/chatbot/message', {
-          user_input: input,
-          conversation_history: updatedHistory
-        })
-
-        if (response.data.success) {
-          handleBotResponse(response.data.data)
-        } else if (response.data.error === 'unclear_category' || response.data.data?.retry) {
-          // Backend couldn't match, show helpful message
-          const helpMsg = {
-            type: 'bot',
-            content: response.data.data?.message || 
-                    'मुझे समझ नहीं आया। कृपया साफ़ शब्दों में बताएं:\n\n' +
-                    '• पुलिस की समस्या के लिए: "पुलिस"\n' +
-                    '• जमीन/संपत्ति के लिए: "जमीन"\n' +
-                    '• परिवार के मामले के लिए: "परिवार"\n' +
-                    '• नौकरी/मजदूरी के लिए: "नौकरी"\n' +
-                    '• उपभोक्ता शिकायत के लिए: "उपभोक्ता"\n' +
-                    '• अन्य के लिए: "अन्य"'
-          }
-          setMessages(prev => [...prev, helpMsg])
-          speakMessage(helpMsg.content)
-          // Stay in category_selection step for retry
-        }
-      } else {
-        // We're in information collection phase
-        // Check if the current question has options and try to match
-        const lastMessage = messages[messages.length - 1]
-        let processedInput = input
-        
-        if (lastMessage && lastMessage.question && lastMessage.question.options) {
-          const matchedOption = matchVoiceToOptions(input, lastMessage.question.options)
-          if (matchedOption) {
-            processedInput = matchedOption
-          }
-        }
-        
-        const response = await api.post('/chatbot/message', {
-          user_input: processedInput,
-          conversation_history: conversationHistory
-        })
-
-        if (response.data.success) {
-          handleBotResponse(response.data.data)
-        }
-      }
-    } catch (error) {
-      console.error('Error processing voice input:', error)
-      const errorMsg = {
-        type: 'bot',
-        content: error.response?.data?.message || 
-                error.response?.data?.error || 
-                'कुछ गलत हो गया। कृपया फिर से बोलें।'
-      }
-      setMessages(prev => [...prev, errorMsg])
-      speakMessage(errorMsg.content)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleBotResponse = (data) => {
-    // Update conversation data
-    if (data.category) {
-      setConversationData(prev => ({ ...prev, category: data.category }))
-      setCurrentStep('information_collection')
-    }
-
-    // Create bot message
-    let botContent = data.message
-    
-    // Add options if available (but don't read them all out loud)
-    if (data.options) {
-      botContent += '\n\nविकल्प:\n' + data.options.map((opt, idx) => `${idx + 1}. ${opt.label}`).join('\n')
-    }
-
-    const botMessage = {
-      type: 'bot',
-      content: botContent,
-      question: data.question,
-      options: data.options,
-      progress: data.progress,
-      completed: data.completed,
-      action: data.action,
-      conversationData: data.data
-    }
-
-    setMessages(prev => [...prev, botMessage])
-    
-    // Speak the response (simplified for voice)
-    let spokenText = data.message
-    if (data.question) {
-      // For questions, just ask the question
-      if (data.question.label) {
-        spokenText = data.question.label
-      }
-      if (data.question.placeholder && data.question.type !== 'options') {
-        spokenText += ` उदाहरण के लिए, ${data.question.placeholder}`
-      }
-    } else if (data.options && data.options.length > 0) {
-      // For options, give a hint but don't read all
-      spokenText += ' अपना जवाब बोलें।'
-    }
-    
-    // Speak and auto-start listening when done
-    speakMessage(spokenText, () => {
-      // Check if conversation complete
-      if (data.completed) {
-        setCurrentStep('completed')
-        // Don't automatically generate document, show suggestions first
-        if (data.suggestions) {
-          speakMessage('क्या आप दस्तावेज़ तैयार करना चाहते हैं?')
-        }
-      } else {
-        // Auto-start listening after bot finishes speaking
-        setTimeout(() => {
-          startListening()
-        }, 800)
-      }
-    })
-
-    // Update conversation history
-    const botEntry = {
-      type: data.question ? 'bot_question' : 'bot_response',
-      content: data.message,
-      question: data.question,
-      question_key: data.question_key
-    }
-    setConversation(prev => [...prev, botEntry])
-  }
-
-  const handleGenerateDocument = async (conversationData, documentType) => {
-    try {
-      const response = await api.post('/chatbot/generate-document', {
-        conversation_data: conversationData,
-        document_type: documentType
+      const response = await api.post('/chatbot/voice-chat', {
+        message: voiceText,
+        history: updatedHistory.slice(-16),
+        language: lang,
       })
 
       if (response.data.success) {
-        const generatedData = response.data.data
-        
-        if (onDocumentGenerated) {
-          onDocumentGenerated(generatedData)
-        }
+        const reply = response.data.data.reply
+        setMessages(prev => [...prev, { type: 'bot', content: reply }])
+        setAiHistory(prev => [...prev, { role: 'assistant', content: reply }])
+        api.post('/profile/activity', { type: 'voice_chat', details: { query: voiceText.substring(0, 100) } }).catch(() => {})
 
-        const successMsg = {
-          type: 'bot',
-          content: `✅ ${documentType.toUpperCase()} सफलतापूर्वक तैयार हो गया है!`
-        }
-        setMessages(prev => [...prev, successMsg])
-        speakMessage('आपका दस्तावेज़ तैयार हो गया है।')
-        setCurrentStep('complete')
+        // Voice replies are already speech-friendly, speak directly
+        speakMessage(reply, () => {
+          // Auto-start listening after bot finishes speaking
+          setTimeout(() => startListening(), 800)
+        })
+      } else {
+        const errMsg = language === 'hi-IN'
+          ? 'माफ़ करें, कुछ गलत हो गया। कृपया फिर से बोलें।'
+          : 'Sorry, something went wrong. Please try again.'
+        setMessages(prev => [...prev, { type: 'bot', content: errMsg }])
+        speakMessage(errMsg, () => setTimeout(() => startListening(), 800))
       }
     } catch (error) {
-      console.error('Error generating document:', error)
-      const errorMsg = {
-        type: 'bot',
-        content: 'दस्तावेज़ तैयार करने में त्रुटि। कृपया पुनः प्रयास करें।'
-      }
-      setMessages(prev => [...prev, errorMsg])
-      speakMessage(errorMsg.content)
+      console.error('AI voice error:', error)
+      const errMsg = language === 'hi-IN'
+        ? 'सर्वर से जुड़ नहीं पाया। कृपया फिर से प्रयास करें।'
+        : 'Could not connect to server. Please try again.'
+      setMessages(prev => [...prev, { type: 'bot', content: errMsg }])
+      speakMessage(errMsg)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -596,9 +340,7 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     stopSpeaking()
     stopListening()
     setMessages([])
-    setConversation([])
-    setConversationData({})
-    setCurrentStep('initial')
+    setAiHistory([])
     setTranscript('')
     startVoiceAssistant()
   }
@@ -629,153 +371,416 @@ const VoiceAssistant = ({ onDocumentGenerated, autoStart = false }) => {
     return (
       <button
         onClick={openVoiceAssistant}
-        className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transform hover:scale-110 transition-all duration-300 z-50 animate-pulse"
+        className="fixed bottom-6 right-6 group bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 text-white p-5 rounded-full shadow-2xl hover:shadow-purple-500/40 transform hover:scale-110 transition-all duration-300 z-50"
       >
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500" />
+        <svg className="w-7 h-7 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
+        {/* Subtle ping indicator */}
+        <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
       </button>
     )
   }
 
-  return (
-    <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 border-2 border-purple-200">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${
-            isListening ? 'bg-red-400 animate-pulse' : 
-            isSpeaking ? 'bg-green-400 animate-pulse' : 
-            'bg-white'
-          }`} />
-          <div>
-            <h3 className="font-semibold">
-              {isListening ? '🎤 सुन रहा हूँ...' : 
-               isSpeaking ? '🔊 बता रहा हूँ...' : 
-               '🎙️ आवाज़ सहायक'}
-            </h3>
-            <p className="text-xs text-blue-100">
-              {currentStep === 'category_selection' ? 'समस्या चुनें' :
-               currentStep === 'information_collection' ? 'जानकारी दे रहे हैं' :
-               currentStep === 'completed' ? 'सुझाव देखें' :
-               currentStep === 'document_generation' ? 'दस्तावेज़ तैयार हो रहा है' :
-               'Voice Assistant'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleLanguage}
-            className="text-white hover:bg-white/20 p-1 rounded-lg transition-colors text-xs"
-            title="Change Language"
-          >
-            {language === 'hi-IN' ? '🇮🇳 हि' : '🇬🇧 EN'}
-          </button>
-          <button
-            onClick={resetAssistant}
-            className="text-white hover:bg-white/20 p-1 rounded-lg transition-colors"
-            title="Reset"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-          <button
-            onClick={closeVoiceAssistant}
-            className="text-white hover:bg-white/20 p-1 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+  // --- Inline / Dashboard mode (autoStart) ---
+  if (autoStart) {
+    return (
+      <div className="w-full max-w-3xl mx-auto animate-fade-in-up">
+        {/* Main Card */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+          {/* Header */}
+          <div className="relative bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 px-6 py-5">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-60" />
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {/* Animated status orb */}
+                <div className="relative">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-lg ${
+                    isListening ? 'bg-red-500/90' :
+                    isSpeaking ? 'bg-emerald-500/90' :
+                    isProcessing ? 'bg-amber-500/90' :
+                    'bg-white/15'
+                  }`}>
+                    {isListening ? '🎤' : isSpeaking ? '🔊' : isProcessing ? '⏳' : '🎙️'}
+                  </div>
+                  {(isListening || isSpeaking) && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-white animate-ping" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-white font-display font-bold text-lg tracking-tight">
+                    {language === 'hi-IN' ? 'आवाज़ सहायक' : 'Voice Assistant'}
+                  </h2>
+                  <p className="text-purple-200 text-sm font-medium">
+                    {isListening ? (language === 'hi-IN' ? '🎤 सुन रहा हूँ...' : '🎤 Listening...') :
+                     isSpeaking ? (language === 'hi-IN' ? '🔊 बोल रहा हूँ...' : '🔊 Speaking...') :
+                     isProcessing ? (language === 'hi-IN' ? '💭 सोच रहा हूँ...' : '💭 Thinking...') :
+                     (language === 'hi-IN' ? 'AI कानूनी सहायक' : 'AI Legal Assistant')}
+                  </p>
+                </div>
+              </div>
 
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-blue-50 to-purple-50">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-xs px-4 py-3 rounded-2xl shadow-md ${
-                msg.type === 'user'
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-none'
-                  : 'bg-white text-gray-800 rounded-bl-none border border-purple-200'
-              }`}
-            >
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-              
-              {msg.progress && (
-                <p className="text-xs mt-2 opacity-75 font-medium">{msg.progress}</p>
-              )}
-            </div>
-          </div>
-        ))}
-        
-        {isProcessing && (
-          <div className="flex justify-start">
-            <div className="bg-white px-4 py-3 rounded-2xl shadow-md border border-purple-200">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleLanguage}
+                  className="px-3 py-1.5 text-sm font-semibold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all duration-200 border border-white/10"
+                >
+                  {language === 'hi-IN' ? '🇮🇳 हिंदी' : '🇬🇧 EN'}
+                </button>
+                <button
+                  onClick={resetAssistant}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all duration-200 border border-white/10"
+                  title="Reset"
+                >
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Transcript Display */}
-      {transcript && (
-        <div className="px-4 py-2 bg-blue-50 border-t border-purple-200">
-          <p className="text-xs text-gray-600">आप बोल रहे हैं:</p>
-          <p className="text-sm text-purple-700 font-medium">{transcript}</p>
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="p-4 border-t border-purple-200 bg-white rounded-b-2xl">
-        <div className="flex items-center justify-center gap-4">
-          {/* Microphone Button */}
-          <button
-            onClick={isListening ? stopListening : startListening}
-            disabled={isProcessing || isSpeaking}
-            className={`p-6 rounded-full transition-all duration-300 transform hover:scale-110 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-              isListening
-                ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:shadow-2xl'
-            }`}
-          >
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isListening ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          {/* Chat area */}
+          <div className="flex flex-col" style={{ height: '420px' }}>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 voice-chat-scroll bg-gradient-to-b from-gray-50/50 to-white">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center py-8 opacity-60">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center text-3xl mb-4">🎙️</div>
+                  <p className="text-gray-500 text-sm font-medium">
+                    {language === 'hi-IN' ? 'आवाज़ सहायक शुरू हो रहा है...' : 'Starting voice assistant...'}
+                  </p>
+                </div>
               )}
-            </svg>
-          </button>
 
-          {/* Stop Speaking Button */}
-          {isSpeaking && (
-            <button
-              onClick={stopSpeaking}
-              className="p-4 rounded-full bg-orange-500 hover:bg-orange-600 transition-all shadow-lg"
-            >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-              </svg>
-            </button>
-          )}
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} voice-msg-enter`}>
+                  {msg.type === 'bot' && (
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold mr-2.5 mt-1 shrink-0 shadow-sm">
+                      AI
+                    </div>
+                  )}
+                  <div className={`max-w-[75%] px-4 py-3 shadow-sm ${
+                    msg.type === 'user'
+                      ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-2xl rounded-br-md'
+                      : 'bg-white text-gray-800 rounded-2xl rounded-bl-md border border-gray-100 shadow-soft'
+                  }`}>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    {msg.progress && (
+                      <p className="text-xs mt-2 opacity-70 font-medium">{msg.progress}</p>
+                    )}
+                  </div>
+                  {msg.type === 'user' && (
+                    <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center text-sm ml-2.5 mt-1 shrink-0">
+                      👤
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isProcessing && (
+                <div className="flex justify-start voice-msg-enter">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold mr-2.5 mt-1 shrink-0 shadow-sm">
+                    AI
+                  </div>
+                  <div className="bg-white px-5 py-4 rounded-2xl rounded-bl-md shadow-soft border border-gray-100">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Live transcript */}
+            {transcript && (
+              <div className="px-5 py-3 bg-purple-50/70 border-t border-purple-100">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+                  <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">
+                    {language === 'hi-IN' ? 'सुन रहा हूँ' : 'Hearing'}
+                  </p>
+                </div>
+                <p className="text-sm text-purple-700 font-medium mt-1">{transcript}</p>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="px-5 py-5 border-t border-gray-100 bg-white">
+              <div className="flex items-center justify-center gap-6">
+                {/* Stop speaking */}
+                {isSpeaking && (
+                  <button
+                    onClick={stopSpeaking}
+                    className="p-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 shadow-lg hover:shadow-orange-500/30 hover:scale-105 active:scale-95"
+                    title={language === 'hi-IN' ? 'आवाज़ बंद करें' : 'Stop speaking'}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Main mic button */}
+                <div className="relative">
+                  {/* Ripple rings when listening */}
+                  {isListening && (
+                    <>
+                      <span className="absolute inset-0 rounded-full bg-red-400/30 voice-ripple-1" />
+                      <span className="absolute inset-0 rounded-full bg-red-400/20 voice-ripple-2" />
+                      <span className="absolute inset-0 rounded-full bg-red-400/10 voice-ripple-3" />
+                    </>
+                  )}
+                  <button
+                    onClick={isListening ? stopListening : startListening}
+                    disabled={isProcessing || isSpeaking}
+                    className={`relative z-10 p-5 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+                      isListening
+                        ? 'bg-red-500 hover:bg-red-600 mic-glow-active'
+                        : 'bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 hover:shadow-purple-500/40'
+                    }`}
+                  >
+                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {isListening ? (
+                        <rect x="6" y="6" width="12" height="12" rx="2" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      )}
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sound wave visualization when listening */}
+              {isListening && (
+                <div className="flex items-center justify-center gap-1 mt-4 h-7">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                    <div
+                      key={i}
+                      className="voice-wave-bar bg-gradient-to-t from-purple-500 to-violet-400"
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Status text */}
+              <p className="text-center text-xs text-gray-400 mt-3 font-medium">
+                {isListening ? (language === 'hi-IN' ? '🎤 बोलिए... मैं सुन रहा हूँ' : '🎤 Speak... I\'m listening') :
+                 isSpeaking ? (language === 'hi-IN' ? '🔊 सुनिए...' : '🔊 Listen...') :
+                 isProcessing ? (language === 'hi-IN' ? '💭 जवाब तैयार हो रहा है...' : '💭 Preparing response...') :
+                 (language === 'hi-IN' ? 'माइक बटन दबाएं और बोलें' : 'Press the mic and speak')}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Floating modal mode (Home page) ---
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeVoiceAssistant}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Modal */}
+      <div
+        className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col animate-scale-in overflow-hidden border border-gray-100"
+        style={{ maxHeight: '85vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="relative bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 px-5 py-4">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-60" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-lg ${
+                  isListening ? 'bg-red-500/90' :
+                  isSpeaking ? 'bg-emerald-500/90' :
+                  isProcessing ? 'bg-amber-500/90' :
+                  'bg-white/15'
+                }`}>
+                  {isListening ? '🎤' : isSpeaking ? '🔊' : isProcessing ? '⏳' : '🎙️'}
+                </div>
+                {(isListening || isSpeaking) && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-white font-display font-bold text-base">
+                  {language === 'hi-IN' ? 'आवाज़ सहायक' : 'Voice Assistant'}
+                </h3>
+                <p className="text-purple-200 text-xs">
+                  {isListening ? (language === 'hi-IN' ? 'सुन रहा हूँ...' : 'Listening...') :
+                   isSpeaking ? (language === 'hi-IN' ? 'बोल रहा हूँ...' : 'Speaking...') :
+                   isProcessing ? (language === 'hi-IN' ? 'सोच रहा हूँ...' : 'Thinking...') :
+                   'AI Legal Assistant'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={toggleLanguage}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10"
+              >
+                {language === 'hi-IN' ? '🇮🇳 हि' : '🇬🇧 EN'}
+              </button>
+              <button
+                onClick={resetAssistant}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10"
+                title="Reset"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
+                onClick={closeVoiceAssistant}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <p className="text-center text-xs text-gray-500 mt-3">
-          {isListening ? '🎤 सुन रहा हूँ... बोलें' : 
-           isSpeaking ? '🔊 बोल रहा हूँ... सुनें' : 
-           isProcessing ? '⏳ प्रोसेस हो रहा है...' :
-           'बोलने के बाद मैं सुनूंगा 👂'}
-        </p>
+        {/* Messages Container */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 voice-chat-scroll bg-gradient-to-b from-gray-50/50 to-white" style={{ minHeight: '260px', maxHeight: '380px' }}>
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-6 opacity-60">
+              <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center text-2xl mb-3">🎙️</div>
+              <p className="text-gray-500 text-sm font-medium">
+                {language === 'hi-IN' ? 'शुरू हो रहा है...' : 'Starting...'}
+              </p>
+            </div>
+          )}
+
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} voice-msg-enter`}>
+              {msg.type === 'bot' && (
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-2xs font-bold mr-2 mt-1 shrink-0 shadow-sm">
+                  AI
+                </div>
+              )}
+              <div className={`max-w-[78%] px-3.5 py-2.5 shadow-sm ${
+                msg.type === 'user'
+                  ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-2xl rounded-br-md'
+                  : 'bg-white text-gray-800 rounded-2xl rounded-bl-md border border-gray-100'
+              }`}>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                {msg.progress && (
+                  <p className="text-xs mt-1.5 opacity-70 font-medium">{msg.progress}</p>
+                )}
+              </div>
+              {msg.type === 'user' && (
+                <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center text-xs ml-2 mt-1 shrink-0">
+                  👤
+                </div>
+              )}
+            </div>
+          ))}
+
+          {isProcessing && (
+            <div className="flex justify-start voice-msg-enter">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-2xs font-bold mr-2 mt-1 shrink-0 shadow-sm">
+                AI
+              </div>
+              <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-md shadow-sm border border-gray-100">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Transcript */}
+        {transcript && (
+          <div className="px-4 py-2.5 bg-purple-50/70 border-t border-purple-100">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+              <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">
+                {language === 'hi-IN' ? 'सुन रहा हूँ' : 'Hearing'}
+              </p>
+            </div>
+            <p className="text-sm text-purple-700 font-medium mt-0.5">{transcript}</p>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="px-5 py-4 border-t border-gray-100 bg-white rounded-b-3xl">
+          <div className="flex items-center justify-center gap-5">
+            {isSpeaking && (
+              <button
+                onClick={stopSpeaking}
+                className="p-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all duration-200 shadow-lg hover:shadow-orange-500/30 hover:scale-105 active:scale-95"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                </svg>
+              </button>
+            )}
+
+            <div className="relative">
+              {isListening && (
+                <>
+                  <span className="absolute inset-0 rounded-full bg-red-400/30 voice-ripple-1" />
+                  <span className="absolute inset-0 rounded-full bg-red-400/20 voice-ripple-2" />
+                  <span className="absolute inset-0 rounded-full bg-red-400/10 voice-ripple-3" />
+                </>
+              )}
+              <button
+                onClick={isListening ? stopListening : startListening}
+                disabled={isProcessing || isSpeaking}
+                className={`relative z-10 p-5 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+                  isListening
+                    ? 'bg-red-500 hover:bg-red-600 mic-glow-active'
+                    : 'bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 hover:shadow-purple-500/40'
+                }`}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {isListening ? (
+                    <rect x="6" y="6" width="12" height="12" rx="2" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  )}
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {isListening && (
+            <div className="flex items-center justify-center gap-1 mt-3 h-6">
+              {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                <div
+                  key={i}
+                  className="voice-wave-bar bg-gradient-to-t from-purple-500 to-violet-400"
+                  style={{ animationDelay: `${i * 0.1}s` }}
+                />
+              ))}
+            </div>
+          )}
+
+          <p className="text-center text-xs text-gray-400 mt-2.5 font-medium">
+            {isListening ? (language === 'hi-IN' ? '🎤 बोलिए...' : '🎤 Speak...') :
+             isSpeaking ? (language === 'hi-IN' ? '🔊 सुनिए...' : '🔊 Listen...') :
+             isProcessing ? (language === 'hi-IN' ? '💭 जवाब तैयार हो रहा है...' : '💭 Preparing...') :
+             (language === 'hi-IN' ? 'माइक बटन दबाएं' : 'Press the mic')}
+          </p>
+        </div>
       </div>
     </div>
   )

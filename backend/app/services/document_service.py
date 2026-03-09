@@ -256,6 +256,15 @@ class DocumentService:
         print(f"[OCR API DEBUG] Response data: OCRExitCode={data.get('OCRExitCode')}, IsErrored={data.get('IsErroredOnProcessing')}, ErrorMsg={data.get('ErrorMessage', 'none')}")
         
         if data.get('IsErroredOnProcessing', False):
+            # Check if we still got partial results (e.g. page limit reached but some pages parsed)
+            parsed_results = data.get('ParsedResults', [])
+            partial_text = '\n'.join([r.get('ParsedText', '') for r in parsed_results]).strip()
+            if partial_text and len(partial_text) > 20:
+                return {
+                    'success': True,
+                    'text': partial_text,
+                    'method': 'OCR.space API (Cloud - partial)'
+                }
             error_messages = data.get('ErrorMessage', ['Unknown error'])
             if isinstance(error_messages, list):
                 error_msg = error_messages[0] if error_messages else 'Unknown error'

@@ -17,10 +17,19 @@ def create_app():
     
     # Enable CORS for all routes
     CORS(app, 
-         origins=["http://localhost:5173", "http://localhost:3000"],
+         origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:3000"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization"],
+         expose_headers=["Content-Type"],
+         max_age=3600,
          supports_credentials=True)
+    
+    # Handle preflight requests
+    @app.before_request
+    def handle_preflight():
+        from flask import request
+        if request.method == "OPTIONS":
+            return {}, 200
     
     # Register blueprints
     from app.routes.auth_routes import auth_bp
@@ -30,8 +39,10 @@ def create_app():
     from app.routes.draft_routes import draft_bp
     from app.routes.scheme_routes import scheme_bp
     from app.routes.legal_education_routes import legal_education_bp
+    from app.routes.legal_tips_routes import legal_tips_bp
     from app.routes.chatbot_routes import chatbot_bp
     from app.routes.speech_routes import speech_bp
+    from app.routes.profile_routes import profile_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(document_bp, url_prefix='/api')
@@ -40,8 +51,10 @@ def create_app():
     app.register_blueprint(draft_bp, url_prefix='/api')
     app.register_blueprint(scheme_bp, url_prefix='/api')
     app.register_blueprint(legal_education_bp, url_prefix='/api/legal-education')
+    app.register_blueprint(legal_tips_bp, url_prefix='/api/legal-tips')
     app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
     app.register_blueprint(speech_bp)
+    app.register_blueprint(profile_bp, url_prefix='/api')
     
     # Health check route
     @app.route('/api/health', methods=['GET'])

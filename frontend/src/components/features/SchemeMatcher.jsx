@@ -15,7 +15,7 @@ const SchemeMatcher = () => {
   const labels = {
     en: {
       title: 'Government Scheme Matching',
-      subtitle: 'Match based on income, land size, and category',
+      subtitle: '19 verified government schemes for rural India',
       income: 'Income (INR)',
       incomePeriod: 'Income Period',
       landSize: 'Land Size',
@@ -40,11 +40,13 @@ const SchemeMatcher = () => {
       documents: 'Documents',
       matched: 'Matched',
       possible: 'Possible',
-      note: 'Matches are indicative. Please verify eligibility with local offices.'
+      note: 'Matches are indicative. Please verify eligibility with local offices.',
+      ministry: 'Ministry',
+      visitPortal: 'Visit Portal',
     },
     hi: {
       title: 'सरकारी योजना मिलान',
-      subtitle: 'आय, जमीन और श्रेणी के आधार पर योजना मिलान',
+      subtitle: 'ग्रामीण भारत के लिए 19 सत्यापित सरकारी योजनाएं',
       income: 'आय (रुपये)',
       incomePeriod: 'आय अवधि',
       landSize: 'भूमि का आकार',
@@ -69,85 +71,9 @@ const SchemeMatcher = () => {
       documents: 'दस्तावेज़',
       matched: 'मिला',
       possible: 'संभावित',
-      note: 'ये परिणाम संकेतात्मक हैं। कृपया स्थानीय कार्यालय से पुष्टि करें।'
-    }
-  }
-
-  const schemeTranslations = {
-    pm_kisan: {
-      name: 'पीएम-किसान',
-      description: 'छोटे और सीमांत किसानों के लिए आय सहायता।',
-      eligibility: 'कृषि भूमि का मालिक होना (आम तौर पर छोटे/सीमांत जोत)।',
-      reasons: [
-        'जमीन का आकार छोटे/सीमांत दायरे में है।',
-        'जमीन का आकार छोटे/सीमांत दायरे से ऊपर है।',
-        'कृषि भूमि का आकार नहीं दिया गया।'
-      ],
-      nextSteps: [
-        'पीएम-किसान पोर्टल या स्थानीय कृषि कार्यालय से पात्रता जांचें।',
-        'भूमि रिकॉर्ड और बैंक विवरण के साथ आवेदन करें।'
-      ],
-      documents: [
-        'भूमि रिकॉर्ड',
-        'आधार या अन्य पहचान पत्र',
-        'बैंक खाता विवरण'
-      ]
-    },
-    legal_aid: {
-      name: 'मुफ्त विधिक सहायता (NALSA/DLSA)',
-      description: 'कम आय और पात्र श्रेणियों के लिए मुफ्त कानूनी सहायता।',
-      eligibility: 'कम आय या पात्र श्रेणी (राज्य के अनुसार बदल सकता है)।',
-      reasons: [
-        'श्रेणी की जानकारी दी गई है।',
-        'आय की जानकारी नहीं दी गई है।',
-        'आय सामान्य सीमा में है।',
-        'कुछ राज्यों में आय पात्र हो सकती है।',
-        'आय सामान्य सीमा से अधिक है।'
-      ],
-      nextSteps: [
-        'जिला विधिक सेवा प्राधिकरण (DLSA) से संपर्क करें।',
-        'NALSA हेल्पलाइन 15100 पर कॉल करें।'
-      ],
-      documents: [
-        'आय प्रमाण पत्र (यदि उपलब्ध)',
-        'पहचान पत्र'
-      ]
-    },
-    farmer_insurance: {
-      name: 'पीएम फसल बीमा योजना (PMFBY)',
-      description: 'प्राकृतिक जोखिमों के खिलाफ फसल बीमा।',
-      eligibility: 'कृषि भूमि वाले किसान या अधिसूचित फसलें।',
-      reasons: [
-        'कृषि भूमि होने से पात्रता संभव है।',
-        'कृषि भूमि का आकार नहीं दिया गया।'
-      ],
-      nextSteps: [
-        'अधिसूचित फसल और मौसम की जानकारी कृषि कार्यालय से लें।',
-        'बैंक या कृषि विभाग के माध्यम से नामांकन करें।'
-      ],
-      documents: [
-        'भूमि रिकॉर्ड या किरायेदारी प्रमाण',
-        'बैंक खाता विवरण'
-      ]
-    },
-    compensation_schemes: {
-      name: 'फसल क्षति मुआवजा योजनाएं',
-      description: 'प्राकृतिक आपदा या फसल नुकसान पर राज्य/जिला सहायता।',
-      eligibility: 'प्राकृतिक आपदा या फसल नुकसान से प्रभावित किसान।',
-      reasons: [
-        'कृषि भूमि होने से पात्रता संभव है।',
-        'कम आय होने पर प्राथमिकता मिल सकती है।',
-        'कृषि भूमि का आकार नहीं दिया गया।'
-      ],
-      nextSteps: [
-        'समय सीमा के भीतर नुकसान की सूचना स्थानीय कृषि कार्यालय में दें।',
-        'मुआवजा सर्वे के दौरान आवश्यक फॉर्म जमा करें।'
-      ],
-      documents: [
-        'भूमि रिकॉर्ड',
-        'नुकसान आकलन रिपोर्ट (यदि हो)',
-        'बैंक खाता विवरण'
-      ]
+      note: 'ये परिणाम संकेतात्मक हैं। कृपया स्थानीय कार्यालय से पुष्टि करें।',
+      ministry: 'मंत्रालय',
+      visitPortal: 'पोर्टल पर जाएं',
     }
   }
 
@@ -188,6 +114,7 @@ const SchemeMatcher = () => {
       const response = await api.post('/match-schemes', payload)
       if (response.data.success) {
         setResult(response.data.data)
+        api.post('/profile/activity', { type: 'scheme_check', details: { income, category } }).catch(() => {})
       } else {
         setError(response.data.message || t.noMatches)
       }
@@ -353,69 +280,93 @@ const SchemeMatcher = () => {
             </div>
           )}
 
-          {result.matches?.map((match) => (
-            <div key={match.id} className="bg-white border border-gray-200 rounded-lg p-4">
-              {(() => {
-                const translated = schemeTranslations[match.id]
-                const name = language === 'hi' && translated?.name ? translated.name : match.name
-                const description = language === 'hi' && translated?.description ? translated.description : match.description
-                const eligibility = language === 'hi' && translated?.eligibility ? translated.eligibility : match.eligibility
-                const reasons = language === 'hi' && translated?.reasons?.length ? translated.reasons : match.reasons
-                const nextSteps = language === 'hi' && translated?.nextSteps?.length ? translated.nextSteps : match.nextSteps
-                const documents = language === 'hi' && translated?.documents?.length ? translated.documents : match.documents
+          {result.totalSchemes && (
+            <p className="text-xs text-gray-500 mb-2">
+              {language === 'hi' ? `कुल ${result.totalSchemes} योजनाओं में से मिलान` : `Matched against ${result.totalSchemes} schemes`}
+            </p>
+          )}
 
-                return (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-900">{name}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{description}</p>
-                      </div>
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${match.matched ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {match.matched ? t.matched : t.possible}
+          {result.matches?.map((match) => {
+            const name = language === 'hi' && match.name_hi ? match.name_hi : match.name
+            const description = language === 'hi' && match.description_hi ? match.description_hi : match.description
+            const eligibility = language === 'hi' && match.eligibility_hi ? match.eligibility_hi : match.eligibility
+            const reasons = language === 'hi' && match.reasons_hi?.length ? match.reasons_hi : match.reasons
+            const nextSteps = language === 'hi' && match.nextSteps_hi?.length ? match.nextSteps_hi : match.nextSteps
+            const documents = language === 'hi' && match.documents_hi?.length ? match.documents_hi : match.documents
+
+            return (
+              <div key={match.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">{name}</h4>
+                    <p className="text-xs text-gray-500 mt-1">{description}</p>
+                    {match.ministry && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">{t.ministry}: {match.ministry}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${match.matched ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
+                    >
+                      {match.matched ? t.matched : t.possible}
+                    </span>
+                    {match.category && (
+                      <span className="px-2 py-0.5 text-[10px] rounded-full bg-saffron-50 text-saffron-600 border border-saffron-200">
+                        {match.category}
                       </span>
-                    </div>
+                    )}
+                  </div>
+                </div>
 
-                    <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs text-gray-600">
-                      <div>
-                        <p className="font-medium text-gray-700 mb-1">{t.eligibility}</p>
-                        <p>{eligibility}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-700 mb-1">{t.reasons}</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                          {reasons?.map((reason, idx) => (
-                            <li key={idx}>{reason}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs text-gray-600">
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">{t.eligibility}</p>
+                    <p>{eligibility}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">{t.reasons}</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {reasons?.map((reason, idx) => (
+                        <li key={idx}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
 
-                    <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs text-gray-600">
-                      <div>
-                        <p className="font-medium text-gray-700 mb-1">{t.nextSteps}</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                          {nextSteps?.map((step, idx) => (
-                            <li key={idx}>{step}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-700 mb-1">{t.documents}</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                          {documents?.map((doc, idx) => (
-                            <li key={idx}>{doc}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-          ))}
+                <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs text-gray-600">
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">{t.nextSteps}</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {nextSteps?.map((step, idx) => (
+                        <li key={idx}>{step}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700 mb-1">{t.documents}</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {documents?.map((doc, idx) => (
+                        <li key={idx}>{doc}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {match.portalUrl && (
+                  <div className="mt-3 pt-2 border-t border-gray-100">
+                    <a
+                      href={match.portalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-saffron-600 hover:text-saffron-700 font-medium"
+                    >
+                      🔗 {t.visitPortal} →
+                    </a>
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
           {result.note && (
             <p className="text-xs text-gray-500">{language === 'hi' ? t.note : result.note}</p>

@@ -26,6 +26,9 @@ simplejson==3.19.2
 # For AI integration - Speech-to-Text
 openai==1.28.1
 
+# Text-to-Speech (free, high-quality neural voices)
+edge-tts==7.2.7
+
 # Audio handling
 pydub==0.25.1
 
