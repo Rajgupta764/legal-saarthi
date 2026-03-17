@@ -2,11 +2,17 @@
 MongoDB Configuration and Connection
 """
 
+import logging
 import os
-from pymongo import MongoClient
-from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
+
+logger = logging.getLogger(__name__)
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BACKEND_DIR / '.env')
 
 # MongoDB Connection
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
@@ -14,12 +20,11 @@ DATABASE_NAME = os.getenv('DATABASE_NAME', 'legal_saathi_db')
 
 try:
     client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-    # Verify connection
     client.admin.command('ping')
     db = client[DATABASE_NAME]
-    print("✓ MongoDB connected successfully")
+    logger.info('MongoDB connected successfully')
 except Exception as e:
-    print(f"✗ MongoDB connection failed: {e}")
+    logger.error('MongoDB connection failed: %s', e)
     db = None
 
 def get_db():
